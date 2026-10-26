@@ -27,9 +27,9 @@ import simd
 func matrix4x4Perspective(fovYRadians: Float, aspect: Float, near: Float, far: Float) -> simd_float4x4 {
     let yScale = 1 / tan(fovYRadians * 0.5)
     let xScale = yScale / aspect
-    let zRange = near - far              
+    let zRange = near - far
     let zScale = far / zRange
-    let wzScale = near * far / zRange    // misma fórmula, resultado idéntico al de antes
+    let wzScale = near * far / zRange
 
     return simd_float4x4(columns: (
         SIMD4<Float>(xScale, 0, 0, 0),

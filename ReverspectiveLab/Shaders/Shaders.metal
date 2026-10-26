@@ -13,9 +13,9 @@ struct VertexIn {
     float3 normal [[attribute(1)]];
 };
 
-/// Uniforms por entidad (buffer 1). Se suben una vez por cada `drawEntity`
-/// en Renderer.swift, así que son los mismos para todos los vértices y
-/// fragmentos de una entidad dentro de un mismo draw call.
+/// Uniforms por objeto (buffer 1). Renderer.swift los sube una vez por
+/// objeto en el loop de `draw(in:)`, así que son los mismos para todos los
+/// vértices y fragmentos de un objeto dentro de un mismo draw call.
 struct Uniforms {
     float4x4 modelMatrix;   // world space — usado para posición/normal en vs_main
     float4x4 mvpMatrix;     // clip space — el único que necesita out.position
@@ -24,8 +24,8 @@ struct Uniforms {
 };
 
 /// Uniforms de la escena (buffer 2, distinto del buffer 1 de `Uniforms`).
-/// Se suben una sola vez por frame en draw(), no por entidad — luz y
-/// cámara no cambian entidad a entidad.
+/// Se suben una sola vez por frame en draw(), no por objeto — luz y
+/// cámara no cambian de un objeto a otro.
 struct SceneUniforms {
     float3 lightPosition;
     float3 cameraPosition;
@@ -79,7 +79,7 @@ vertex VertexOut vs_main(VertexIn in [[stage_in]],
 /// - Parameters:
 ///   - in: Posición y normal en world space, ya interpoladas por el
 ///     rasterizador — específicas de este píxel, no de un vértice.
-///   - uniforms: Color base y shininess de la entidad (buffer 1).
+///   - uniforms: Color base y shininess del objeto (buffer 1).
 ///   - scene: Posición de luz y cámara (buffer 2), iguales para
 ///     todos los píxeles del frame.
 /// - Returns: Color final del píxel — ambient + diffuse (N·L) +

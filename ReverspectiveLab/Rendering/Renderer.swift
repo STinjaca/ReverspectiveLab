@@ -1,5 +1,5 @@
 //
-//  Render.swift
+//  Renderer.swift
 //  ReverspectiveLab
 //
 //  Created by Santi T on 25/10/26.
@@ -8,11 +8,11 @@
 import MetalKit
 import simd
 
-/// Uniforms por entidad, subidos una vez por objeto en el loop de draw.
+/// Uniforms por objeto, subidos una vez por objeto en el loop de draw.
 ///
-/// `modelMatrix` viaja aparte de `mvpMatrix` porque el fragment shader la
-/// necesita sin proyectar — para pasar normales y posición a world space en
-/// `vs_main` sin volver a calcular nada del lado de la GPU.
+/// `modelMatrix` viaja aparte de `mvpMatrix` porque `vs_main` la necesita
+/// sin proyectar: con ella pasa posición y normal a world space, que es
+/// donde `fs_main` calcula la iluminación.
 struct Uniforms {
     var modelMatrix: simd_float4x4
     var mvpMatrix: simd_float4x4
@@ -21,7 +21,7 @@ struct Uniforms {
 }
 
 /// Uniforms globales de la escena, subidos una sola vez por frame (buffer
-/// distinto al de `Uniforms`, índice 2) — no dependen de qué entidad se esté
+/// distinto al de `Uniforms`, índice 2) — no dependen de qué objeto se esté
 /// dibujando, así que no tiene sentido repetirlos por draw call.
 struct SceneUniforms {
     var lightPosition: SIMD3<Float>
