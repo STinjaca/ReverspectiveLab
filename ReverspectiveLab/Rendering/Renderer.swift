@@ -37,6 +37,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     /// Texturas de 256×256 donde la cámara C toma las fotos.
     let fotos: FotosC
+    let pasadaFotos: PasadaFotos
 
     /// Cámara para mirar la escena en pantalla. Es independiente de
     /// `escena.camaraC`, que se queda fija para tomar las fotos.
@@ -62,6 +63,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         
         self.escena = try! EscenaPrueba.crear(device: device)
         self.fotos = FotosC(device: device)
+        self.pasadaFotos = PasadaFotos(device: device, library: library,
+                                       fotos: fotos, fondo: vista.clearColor)
 
         // --- pipeline normal: vs_main + fs_main (Blinn-Phong) ---
         let desc = MTLRenderPipelineDescriptor()
@@ -116,13 +119,22 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         guard let drawable = view.currentDrawable,
             let descriptor = view.currentRenderPassDescriptor,
-            let commandBuffer = commandQueue.makeCommandBuffer(),
-            let encoder = commandBuffer.makeRenderCommandEncoder(
-                descriptor: descriptor
-            )
+            let commandBuffer = commandQueue.makeCommandBuffer()
         else {
             return
         }
+
+        // Primero las fotos desde C. Por ahora en cada frame: la captura de
+        // GPU solo muestra lo que pasa dentro de un frame. Un command buffer
+        // admite un encoder abierto a la vez, así que el del visor se abre después.
+        pasadaFotos.tomar(escena: escena, fotos: fotos, commandBuffer: commandBuffer)
+
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(
+            descriptor: descriptor
+        ) else {
+            return
+        }
+        encoder.label = "Visor"
         
         let viewProjection = camaraVisor.matrizProyeccion(aspect: aspect)
             * camaraVisor.matrizVista()
