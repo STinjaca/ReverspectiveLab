@@ -18,6 +18,7 @@ struct Uniforms {
     var mvpMatrix: simd_float4x4
     var baseColor: SIMD4<Float>
     var shininess: Float
+    var objetoID: UInt32    // UInt32 y no UInt16: tiene que medir lo mismo que `uint` en Metal
 }
 
 /// Uniforms globales de la escena, subidos una sola vez por frame (buffer
@@ -147,7 +148,8 @@ final class Renderer: NSObject, MTKViewDelegate {
                 modelMatrix: obj.modelo,
                 mvpMatrix: viewProjection * obj.modelo,
                 baseColor: obj.color,
-                shininess: 32
+                shininess: 32,
+                objetoID: UInt32(obj.id)
             )
             
             encoder.setVertexBytes(

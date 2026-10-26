@@ -20,7 +20,8 @@ struct Uniforms {
     float4x4 modelMatrix;   // world space — usado para posición/normal en vs_main
     float4x4 mvpMatrix;     // clip space — el único que necesita out.position
     float4 baseColor;       // usado solo en fs_main
-    float shininess;        // usado solo en fs_main
+    float shininess;        // usado solo en sombrear
+    uint objetoID;          // usado solo en fs_fotos; 32 bits como el UInt32 de Swift
 };
 
 /// Uniforms de la escena (buffer 2, distinto del buffer 1 de `Uniforms`).
