@@ -46,12 +46,6 @@ final class Renderer: NSObject, MTKViewDelegate {
     let pipelineState: MTLRenderPipelineState
     let depthState: MTLDepthStencilState
 
-    let lightPosition = SIMD3<Float>(
-        3,
-        5,
-        4
-    )
-    
     var aspect: Float = 1
 
     init(
@@ -133,7 +127,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             * camaraVisor.matrizVista()
         
         var scene = SceneUniforms(
-            lightPosition: lightPosition,
+            lightPosition: escena.luz,
             cameraPosition: camaraVisor.posicion
         )
         encoder
@@ -152,7 +146,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             var uniforms = Uniforms(
                 modelMatrix: obj.modelo,
                 mvpMatrix: viewProjection * obj.modelo,
-                baseColor: colorPara(id: obj.id),
+                baseColor: obj.color,
                 shininess: 32
             )
             
@@ -206,17 +200,6 @@ final class Renderer: NSObject, MTKViewDelegate {
         case let .zoom(magnificacion):
             // Fuera de la esfera (radio 1) y dentro del far plane (20).
             camaraVisor.acercar(magnificacion: Float(magnificacion), radio: 1.5...15)
-        }
-    }
-
-    func colorPara(id: UInt16) -> SIMD4<Float> {
-        switch id {
-        case 1:
-            return SIMD4<Float>(1.0, 0.5, 0.0, 1.0)
-        case 2:
-            return SIMD4<Float>(1.0, 0.0, 1.0, 1.0)
-        default:
-            return SIMD4<Float>(1.0, 1.0, 1.0, 1.0)
         }
     }
 }

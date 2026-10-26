@@ -38,17 +38,20 @@ enum EscenaPrueba {
 
         let objetos = [
             ObjetoEscena(nombre: "esfera", id: 1, malla: try aMetal(esfera),
-                         modelo: traslacion([0, 0, 0])),        // toca el piso en y = -1
+                         modelo: traslacion([0, 0, 0]),         // toca el piso en y = -1
+                         color: [1.0, 0.5, 0.0, 1.0]),
             ObjetoEscena(nombre: "cubo",   id: 2, malla: try aMetal(cubo),
-                         modelo: traslacion([1.8, -0.5, -1])),  // apoyado en el piso, más atrás
+                         modelo: traslacion([1.8, -0.5, -1]),   // apoyado en el piso, más atrás
+                         color: [1.0, 0.0, 1.0, 1.0]),
             ObjetoEscena(nombre: "piso",   id: 3, malla: try aMetal(piso),
-                         modelo: traslacion([0, -1, 0])),
+                         modelo: traslacion([0, -1, 0]),
+                         color: [1.0, 1.0, 1.0, 1.0]),
         ]
 
         // La foto es cuadrada (256×256), así que esta cámara siempre usa aspecto 1.
         let camaraC = Camara(posicion: [0, 0, 5], objetivo: [0, 0, 0], fovGrados: 45)
 
-        return Escena(objetos: objetos, camaraC: camaraC)
+        return Escena(objetos: objetos, camaraC: camaraC, luz: [3, 5, 4])
     }
 
     static func traslacion(_ t: SIMD3<Float>) -> simd_float4x4 {
