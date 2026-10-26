@@ -2,7 +2,7 @@
 //  Cámara de mira (look-at) con proyección en perspectiva.
 //
 //  Hay dos instancias con propósitos distintos:
-//    - Cámara C (Escena.camaraC): fija, toma las fotos de 256×256 (aspecto 1).
+//    - Cámara C (`camaraC`, creada en EscenaPrueba.crear): fija, toma las fotos de 256×256 (aspecto 1).
 //    - Cámara del visor (Renderer.camaraVisor): se mueve, usa el aspecto de la ventana.
 
 import simd
