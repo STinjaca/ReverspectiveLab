@@ -106,3 +106,30 @@ fragment float4 fs_main(VertexOut in [[stage_in]],
                          constant SceneUniforms &scene [[buffer(2)]]) {
     return float4(sombrear(in, uniforms, scene), uniforms.baseColor.a);
 }
+
+/// Lo que escribe `fs_fotos`: un valor por cada imagen de la pasada.
+/// `[[color(n)]]` manda el campo a `colorAttachments[n]` en Swift, y el tipo
+/// tiene que corresponder al formato de esa textura.
+struct FotosDesdeC {
+    float4 color     [[color(0)]];   // fotos.color      rgba8Unorm
+    float  distancia [[color(1)]];   // fotos.distancia  r32Float
+    ushort id        [[color(2)]];   // fotos.id         r16Uint
+};
+
+/// Fragment shader de las fotos de la cámara C: color, distancia e ID en
+/// una sola pasada.
+///
+/// La distancia es radial: `length(punto − C)`, a lo largo del rayo que sale
+/// de C y pasa por este píxel. No sirve el z-buffer, porque guarda un valor
+/// deformado por la perspectiva y medido a lo largo del eje de la cámara.
+/// Para eso `scene.cameraPosition` tiene que ser la posición de C, no la
+/// del visor.
+fragment FotosDesdeC fs_fotos(VertexOut in [[stage_in]],
+                              constant Uniforms &uniforms [[buffer(1)]],
+                              constant SceneUniforms &scene [[buffer(2)]]) {
+    FotosDesdeC out;
+    out.color = float4(sombrear(in, uniforms, scene), 1.0);
+    out.distancia = distance(in.worldPosition, scene.cameraPosition);
+    out.id = ushort(uniforms.objetoID);
+    return out;
+}
