@@ -32,7 +32,11 @@ final class Renderer: NSObject, MTKViewDelegate {
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
     
-    let objetos: [ObjetoEscena]
+    let escena: Escena
+
+    /// Cámara para mirar la escena en pantalla. Es independiente de
+    /// `escena.camaraC`, que se queda fija para tomar las fotos.
+    var camaraVisor = Camara(posicion: [10, 0, 7], objetivo: [0, 0, 0])
 
 
     // Pipeline "normal": Blinn-Phong real, escribe y prueba profundidad.
@@ -60,7 +64,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         vista.colorPixelFormat = .bgra8Unorm
         vista.depthStencilPixelFormat = .depth32Float
         
-        self.objetos = try! EscenaPrueba.crear(device: device)
+        self.escena = try! EscenaPrueba.crear(device: device)
 
         // --- pipeline normal: vs_main + fs_main (Blinn-Phong) ---
         let desc = MTLRenderPipelineDescriptor()
@@ -74,9 +78,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             .makeFunction(
                 name: "fs_main"
             )
-        desc.vertexDescriptor = MTKMetalVertexDescriptorFromModelIO(
-            EscenaPrueba.descriptorVertices
-        )
+        desc.vertexDescriptor = VertexLayout.metal
         desc
             .colorAttachments[0].pixelFormat = vista.colorPixelFormat
         desc.depthAttachmentPixelFormat = vista.depthStencilPixelFormat
@@ -119,22 +121,12 @@ final class Renderer: NSObject, MTKViewDelegate {
             return
         }
         
-        let projection = matrix4x4Perspective(
-            fovYRadians: EscenaPrueba.fovVerticalGrados * .pi / 180,
-            aspect: aspect,
-            near: 0.1,
-            far: 20
-        )
-        let view4 = matrix4x4LookAt(
-            eye: posCamara(),
-            center: EscenaPrueba.objetivoCamara,
-            up: EscenaPrueba.arribaCamara
-        )
-        let viewProjection = projection * view4
+        let viewProjection = camaraVisor.matrizProyeccion(aspect: aspect)
+            * camaraVisor.matrizVista()
         
         var scene = SceneUniforms(
             lightPosition: lightPosition,
-            cameraPosition: EscenaPrueba.posicionCamara
+            cameraPosition: camaraVisor.posicion
         )
         encoder
             .setFragmentBytes(
@@ -147,7 +139,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         encoder.setDepthStencilState(depthState)
         
         
-        for obj in objetos {
+        for obj in escena.objetos {
             
             var uniforms = Uniforms(
                 modelMatrix: obj.modelo,
@@ -207,9 +199,9 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
     
     func posCamara()-> SIMD3<Float>{
-        let y = Float(EscenaPrueba.posicionCamara[1])
-        let x = Float(EscenaPrueba.posicionCamara[0])
-        let z = Float(EscenaPrueba.posicionCamara[2])
+        let y = camaraVisor.posicion[1]
+        let x = camaraVisor.posicion[0]
+        let z = camaraVisor.posicion[2]
         
         let R = pow(x, 2) + pow(y, 2) + pow(z, 2)
         

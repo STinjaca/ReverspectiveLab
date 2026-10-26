@@ -1,5 +1,5 @@
-//  Escena.swift — ReverspectiveLab
-//  Escena de prueba con distancias conocidas (para el paso 5).
+//  EscenaPrueba.swift — ReverspectiveLab
+//  Fábrica de la escena de prueba con distancias conocidas (para el paso 5).
 //
 //  Mundo: Y hacia arriba. La cámara C está en (0, 0, 5) mirando al origen.
 //  IDs: 0 = fondo (nada), 1 = esfera, 2 = cubo, 3 = piso.
@@ -12,39 +12,13 @@ import MetalKit
 import ModelIO
 import simd
 
-struct ObjetoEscena {
-    let nombre: String
-    let id: UInt16              // lo que escribirás en la foto de ID
-    let malla: MTKMesh
-    let modelo: simd_float4x4   // matriz del objeto al mundo
-}
-
 enum EscenaPrueba {
 
-    static let posicionCamara = SIMD3<Float>(10, 0, 0)
-    static let objetivoCamara = SIMD3<Float>(0, 0, 0)
-    static let arribaCamara   = SIMD3<Float>(0, 1, 0)
-    static let fovVerticalGrados: Float = 45   // la foto es cuadrada: aspecto = 1
-
-    /// Formato de los vértices: posición (float3) + normal (float3).
-    /// Usa este mismo descriptor para crear el pipeline:
-    ///   MTKMetalVertexDescriptorFromModelIO(EscenaPrueba.descriptorVertices)
-    /// En el shader: [[attribute(0)]] = posición, [[attribute(1)]] = normal.
-    static let descriptorVertices: MDLVertexDescriptor = {
-        let d = MDLVertexDescriptor()
-        d.attributes[0] = MDLVertexAttribute(name: MDLVertexAttributePosition,
-                                             format: .float3, offset: 0, bufferIndex: 0)
-        d.attributes[1] = MDLVertexAttribute(name: MDLVertexAttributeNormal,
-                                             format: .float3, offset: 12, bufferIndex: 0)
-        d.layouts[0] = MDLVertexBufferLayout(stride: 24)
-        return d
-    }()
-
-    static func crear(device: MTLDevice) throws -> [ObjetoEscena] {
+    static func crear(device: MTLDevice) throws -> Escena {
         let allocator = MTKMeshBufferAllocator(device: device)
 
         func aMetal(_ mdl: MDLMesh) throws -> MTKMesh {
-            mdl.vertexDescriptor = descriptorVertices   // reordena los datos al formato de arriba
+            mdl.vertexDescriptor = VertexLayout.modelIO   // reordena los datos al formato común
             return try MTKMesh(mesh: mdl, device: device)
         }
 
@@ -62,7 +36,7 @@ enum EscenaPrueba {
         let piso = MDLMesh(planeWithExtent: [8, 0, 8], segments: [1, 1],
                            geometryType: .triangles, allocator: allocator)
 
-        return [
+        let objetos = [
             ObjetoEscena(nombre: "esfera", id: 1, malla: try aMetal(esfera),
                          modelo: traslacion([0, 0, 0])),        // toca el piso en y = -1
             ObjetoEscena(nombre: "cubo",   id: 2, malla: try aMetal(cubo),
@@ -70,6 +44,11 @@ enum EscenaPrueba {
             ObjetoEscena(nombre: "piso",   id: 3, malla: try aMetal(piso),
                          modelo: traslacion([0, -1, 0])),
         ]
+
+        // La foto es cuadrada (256×256), así que esta cámara siempre usa aspecto 1.
+        let camaraC = Camara(posicion: [0, 0, 5], objetivo: [0, 0, 0], fovGrados: 45)
+
+        return Escena(objetos: objetos, camaraC: camaraC)
     }
 
     static func traslacion(_ t: SIMD3<Float>) -> simd_float4x4 {
