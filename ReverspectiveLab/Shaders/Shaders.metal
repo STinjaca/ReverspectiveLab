@@ -68,7 +68,10 @@ vertex VertexOut vs_main(VertexIn in [[stage_in]],
     return out;
 }
 
-/// Fragment shader — una invocación por píxel cubierto, con Blinn-Phong.
+/// Blinn-Phong: ambient + diffuse (N·L) + specular (N·H, término de Blinn).
+///
+/// Función normal (sin `fragment`) para que la compartan `fs_main` y
+/// `fs_fotos`: la foto de color tiene que verse igual que la pantalla.
 ///
 /// `in` no es el dato de ningún vértice: es el resultado de interpolar
 /// `worldPosition`/`worldNormal` de los 3 vértices del triángulo según
@@ -82,11 +85,8 @@ vertex VertexOut vs_main(VertexIn in [[stage_in]],
 ///   - uniforms: Color base y shininess del objeto (buffer 1).
 ///   - scene: Posición de luz y cámara (buffer 2), iguales para
 ///     todos los píxeles del frame.
-/// - Returns: Color final del píxel — ambient + diffuse (N·L) +
-///   specular (N·H, término de Blinn).
-fragment float4 fs_main(VertexOut in [[stage_in]],
-                         constant Uniforms &uniforms [[buffer(1)]],
-                         constant SceneUniforms &scene [[buffer(2)]]) {
+/// - Returns: Color RGB del píxel, sin alfa.
+float3 sombrear(VertexOut in, constant Uniforms &uniforms, constant SceneUniforms &scene) {
     float3 N = normalize(in.worldNormal);
     float3 L = normalize(scene.lightPosition - in.worldPosition);
     float3 V = normalize(scene.cameraPosition - in.worldPosition);
@@ -96,6 +96,12 @@ fragment float4 fs_main(VertexOut in [[stage_in]],
     float diffuse = max(dot(N, L), 0.0);
     float specular = pow(max(dot(N, H), 0.0), uniforms.shininess);
 
-    float3 color = uniforms.baseColor.rgb * (ambient + diffuse) + specular * 0.6;
-    return float4(color, uniforms.baseColor.a);
+    return uniforms.baseColor.rgb * (ambient + diffuse) + specular * 0.6;
+}
+
+/// Fragment shader de la pantalla — una invocación por píxel cubierto.
+fragment float4 fs_main(VertexOut in [[stage_in]],
+                         constant Uniforms &uniforms [[buffer(1)]],
+                         constant SceneUniforms &scene [[buffer(2)]]) {
+    return float4(sombrear(in, uniforms, scene), uniforms.baseColor.a);
 }
