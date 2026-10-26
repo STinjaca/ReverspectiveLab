@@ -36,7 +36,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     /// Cámara para mirar la escena en pantalla. Es independiente de
     /// `escena.camaraC`, que se queda fija para tomar las fotos.
-    var camaraVisor = Camara(posicion: [10, 0, 7], objetivo: [0, 0, 0])
+    var camaraVisor = Camara(posicion: [0, 0, 5], objetivo: [0, 0, 0])
 
 
     // Pipeline "normal": Blinn-Phong real, escribe y prueba profundidad.
