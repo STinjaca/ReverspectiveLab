@@ -34,6 +34,9 @@ final class Renderer: NSObject, MTKViewDelegate {
     
     let escena: Escena
 
+    /// Texturas de 256×256 donde la cámara C toma las fotos.
+    let fotos: FotosC
+
     /// Cámara para mirar la escena en pantalla. Es independiente de
     /// `escena.camaraC`, que se queda fija para tomar las fotos.
     var camaraVisor = Camara(posicion: [0, 0, 5], objetivo: [0, 0, 0])
@@ -63,6 +66,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         vista.depthStencilPixelFormat = .depth32Float
         
         self.escena = try! EscenaPrueba.crear(device: device)
+        self.fotos = FotosC(device: device)
 
         // --- pipeline normal: vs_main + fs_main (Blinn-Phong) ---
         let desc = MTLRenderPipelineDescriptor()
@@ -95,6 +99,12 @@ final class Renderer: NSObject, MTKViewDelegate {
                 descriptor: depthDesc
             )!
         super.init()
+
+        // Verificación temporal: las cuatro fotos existen con su tamaño y formato.
+        for textura in [fotos.color, fotos.distancia, fotos.id, fotos.profundidad] {
+            let nombre = (textura.label ?? "?").padding(toLength: 18, withPad: " ", startingAt: 0)
+            print("\(nombre)\(textura.width)×\(textura.height)  \(textura.pixelFormat)")
+        }
     }
 
     func mtkView(
