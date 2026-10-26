@@ -10,7 +10,7 @@ import MetalKit
 
 struct MetalView: NSViewRepresentable {
     
-    @Binding var cursorPosition: CGPoint
+    @Binding var arrastre: CGSize
     
 
     // Solo sirve para mantener vivo al Renderer mientras exista la vista.
@@ -32,7 +32,7 @@ struct MetalView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: MTKView, context: Context) {
-        context.coordinator.renderer?.cursorPosition = cursorPosition
+        context.coordinator.renderer?.arrastre = arrastre
     }
 }
 

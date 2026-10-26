@@ -51,7 +51,17 @@ final class Renderer: NSObject, MTKViewDelegate {
     
     var aspect: Float = 1
     
-    var cursorPosition: CGPoint = .zero
+    /// Arrastre acumulado del mouse, en puntos. Solo importa cuánto cambió
+    /// desde la última vez: ese incremento es lo que gira la cámara.
+    var arrastre: CGSize = .zero {
+        didSet {
+            let radianesPorPunto: Float = 0.01
+            camaraVisor.orbitar(
+                yaw: -Float(arrastre.width - oldValue.width) * radianesPorPunto,
+                pitch: Float(arrastre.height - oldValue.height) * radianesPorPunto
+            )
+        }
+    }
 
     init(
         vista: MTKView
@@ -197,34 +207,4 @@ final class Renderer: NSObject, MTKViewDelegate {
             return SIMD4<Float>(1.0, 1.0, 1.0, 1.0)
         }
     }
-    
-    func posCamara()-> SIMD3<Float>{
-        let y = camaraVisor.posicion[1]
-        let x = camaraVisor.posicion[0]
-        let z = camaraVisor.posicion[2]
-        
-        let R = pow(x, 2) + pow(y, 2) + pow(z, 2)
-        
-        if(R == 0){
-            return SIMD3<Float>(0.0, 0.0, 0.0)
-        }
-        
-        let tetha = atan2(y, x)
-        let phi = acos(z / R)
-        
-        let tetha_nuevo = Float(cursorPosition.x) + tetha
-        let phi_tem = Float(cursorPosition.y) + phi
-        
-        // Limitar phi para evitar el efecto "Gimbal Lock" en los polos (+-90 grados)
-        let phi_nuevo = max(min(phi_tem, .pi/2 - 0.001), -.pi/2 + 0.001)
-        
-        // Re-proyectar a coordenadas cartesianas XYZ
-        let x_nueva = R * cos(phi_nuevo) * cos(tetha_nuevo)
-        let y_nueva = R * cos(phi_nuevo) * sin(tetha_nuevo)
-        let z_nueva = R * sin(phi_nuevo)
-        
-        let result = SIMD3<Float>(x_nueva, y_nueva, z_nueva)
-        return result
-    }
-    
 }

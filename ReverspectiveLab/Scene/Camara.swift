@@ -23,4 +23,26 @@ struct Camara {
         matrix4x4Perspective(fovYRadians: fovGrados * .pi / 180,
                              aspect: aspect, near: cerca, far: lejos)
     }
+
+    /// Gira la cámara alrededor de `objetivo` sin cambiar la distancia.
+    ///
+    /// Pasa `posicion - objetivo` a esféricas con Y arriba (yaw alrededor de Y,
+    /// pitch = elevación sobre el plano XZ), suma los incrementos y vuelve a
+    /// cartesianas. El estado es la propia `posicion`, así que cada llamada
+    /// parte de donde quedó la anterior.
+    mutating func orbitar(yaw dYaw: Float, pitch dPitch: Float) {
+        let offset = posicion - objetivo
+        let radio = simd_length(offset)
+        guard radio > 0 else { return }
+
+        let yaw = atan2(offset.x, offset.z) + dYaw
+        // En ±90° la dirección de vista queda paralela a `arriba` y el look-at
+        // no puede armar la base (el producto cruz da cero).
+        let limite = Float.pi / 2 - 0.01
+        let pitch = min(max(asin(offset.y / radio) + dPitch, -limite), limite)
+
+        posicion = objetivo + radio * SIMD3<Float>(cos(pitch) * sin(yaw),
+                                                   sin(pitch),
+                                                   cos(pitch) * cos(yaw))
+    }
 }
