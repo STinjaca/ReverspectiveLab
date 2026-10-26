@@ -1,0 +1,8 @@
+# macOS
+.DS_Store
+
+# Xcode: estado por usuario y artefactos de build
+xcuserdata/
+DerivedData/
+build/
+*.xcuserstate
