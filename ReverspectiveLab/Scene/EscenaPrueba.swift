@@ -22,8 +22,9 @@ enum EscenaPrueba {
             return try MTKMesh(mesh: mdl, device: device)
         }
 
-        // Esfera de radio 1 (extent = diámetro)
-        let esfera = MDLMesh(sphereWithExtent: [2, 2, 2], segments: [48, 48],
+        // Esfera de radio 1. Ojo: en la esfera, extent es el RADIO
+        // (en la caja y el plano sí es el tamaño completo).
+        let esfera = MDLMesh(sphereWithExtent: [1, 1, 1], segments: [48, 48],
                              inwardNormals: false, geometryType: .triangles,
                              allocator: allocator)
 
