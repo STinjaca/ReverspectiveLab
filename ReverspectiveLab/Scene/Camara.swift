@@ -45,4 +45,19 @@ struct Camara {
                                                    sin(pitch),
                                                    cos(pitch) * cos(yaw))
     }
+
+    /// Acerca (magnificación > 0) o aleja (< 0) la cámara de `objetivo` sin
+    /// cambiar la dirección de vista.
+    ///
+    /// El radio se multiplica por `exp(-magnificacion)`: así acercar y alejar
+    /// la misma cantidad se cancelan, y nunca da un radio negativo.
+    mutating func acercar(magnificacion: Float, radio limites: ClosedRange<Float>) {
+        let offset = posicion - objetivo
+        let radio = simd_length(offset)
+        guard radio > 0 else { return }
+
+        let nuevoRadio = min(max(radio * exp(-magnificacion), limites.lowerBound),
+                             limites.upperBound)
+        posicion = objetivo + offset * (nuevoRadio / radio)
+    }
 }

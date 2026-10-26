@@ -9,4 +9,8 @@ enum GestoCamara {
     /// Girar alrededor del objetivo. En puntos de pantalla, con Y hacia abajo
     /// (arrastrar hacia la derecha = dx positivo).
     case orbitar(dx: CGFloat, dy: CGFloat)
+
+    /// Acercar (> 0) o alejar (< 0). Misma unidad que `NSEvent.magnification`:
+    /// 0.1 ≈ acercar un 10 %.
+    case zoom(magnificacion: CGFloat)
 }

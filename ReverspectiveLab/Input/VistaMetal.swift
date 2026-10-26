@@ -3,6 +3,7 @@
 //
 //    Botón central + arrastrar   → .orbitar
 //    Trackpad, dos dedos         → .orbitar
+//    Rueda del mouse             → .zoom
 //
 //  DragGesture de SwiftUI no deja filtrar por botón ni distinguir trackpad
 //  de rueda, así que se escuchan los eventos de AppKit directamente.
@@ -22,8 +23,16 @@ final class VistaMetal: MTKView {
 
     override func scrollWheel(with event: NSEvent) {
         // Trackpad (y Magic Mouse): deltas continuos en puntos.
-        // La rueda clásica da saltos por línea y queda libre para el zoom.
-        guard event.hasPreciseScrollingDeltas else { return }
+        // La rueda clásica da saltos por línea.
+        guard event.hasPreciseScrollingDeltas else {
+            // Con "desplazamiento natural" macOS invierte el signo; se deshace
+            // para que girar la rueda hacia adelante siempre acerque.
+            let lineas = event.isDirectionInvertedFromDevice ? -event.scrollingDeltaY
+                                                             : event.scrollingDeltaY
+            let magnificacionPorLinea: CGFloat = 0.1
+            alGesto?(.zoom(magnificacion: lineas * magnificacionPorLinea))
+            return
+        }
         // Ignorar la inercia que sigue al levantar los dedos: la cámara
         // se detiene cuando se detiene la mano.
         guard event.momentumPhase.isEmpty else { return }

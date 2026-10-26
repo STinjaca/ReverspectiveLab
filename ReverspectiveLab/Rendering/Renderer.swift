@@ -193,6 +193,9 @@ final class Renderer: NSObject, MTKViewDelegate {
             let radianesPorPunto: Float = 0.01
             camaraVisor.orbitar(yaw: -Float(dx) * radianesPorPunto,
                                 pitch: Float(dy) * radianesPorPunto)
+        case let .zoom(magnificacion):
+            // Fuera de la esfera (radio 1) y dentro del far plane (20).
+            camaraVisor.acercar(magnificacion: Float(magnificacion), radio: 1.5...15)
         }
     }
 
