@@ -4,6 +4,7 @@
 //    Botón central + arrastrar   → .orbitar
 //    Trackpad, dos dedos         → .orbitar
 //    Rueda del mouse             → .zoom
+//    Trackpad, pellizco          → .zoom
 //
 //  DragGesture de SwiftUI no deja filtrar por botón ni distinguir trackpad
 //  de rueda, así que se escuchan los eventos de AppKit directamente.
@@ -37,5 +38,10 @@ final class VistaMetal: MTKView {
         // se detiene cuando se detiene la mano.
         guard event.momentumPhase.isEmpty else { return }
         alGesto?(.orbitar(dx: event.scrollingDeltaX, dy: event.scrollingDeltaY))
+    }
+
+    override func magnify(with event: NSEvent) {
+        // Separar los dedos da magnificación positiva: acercar.
+        alGesto?(.zoom(magnificacion: event.magnification))
     }
 }
