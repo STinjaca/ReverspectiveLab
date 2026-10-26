@@ -50,18 +50,6 @@ final class Renderer: NSObject, MTKViewDelegate {
     )
     
     var aspect: Float = 1
-    
-    /// Arrastre acumulado del mouse, en puntos. Solo importa cuánto cambió
-    /// desde la última vez: ese incremento es lo que gira la cámara.
-    var arrastre: CGSize = .zero {
-        didSet {
-            let radianesPorPunto: Float = 0.01
-            camaraVisor.orbitar(
-                yaw: -Float(arrastre.width - oldValue.width) * radianesPorPunto,
-                pitch: Float(arrastre.height - oldValue.height) * radianesPorPunto
-            )
-        }
-    }
 
     init(
         vista: MTKView
@@ -197,6 +185,17 @@ final class Renderer: NSObject, MTKViewDelegate {
             .commit()
     }
     
+    /// Traduce un gesto a la cámara del visor. Las sensibilidades viven aquí
+    /// y no en VistaMetal, que solo sabe de dispositivos.
+    func aplicar(_ gesto: GestoCamara) {
+        switch gesto {
+        case let .orbitar(dx, dy):
+            let radianesPorPunto: Float = 0.01
+            camaraVisor.orbitar(yaw: -Float(dx) * radianesPorPunto,
+                                pitch: Float(dy) * radianesPorPunto)
+        }
+    }
+
     func colorPara(id: UInt16) -> SIMD4<Float> {
         switch id {
         case 1:
