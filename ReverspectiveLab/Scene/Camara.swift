@@ -39,7 +39,10 @@ struct Camara {
         // En ±90° la dirección de vista queda paralela a `arriba` y el look-at
         // no puede armar la base (el producto cruz da cero).
         let limite = Float.pi / 2 - 0.01
-        let pitch = min(max(asin(offset.y / radio) + dPitch, -limite), limite)
+        // Por redondeo offset.y / radio puede salir 1.0000001, y asin de algo
+        // fuera de [-1, 1] es NaN: la cámara desaparecería y no volvería.
+        let seno = min(max(offset.y / radio, -1), 1)
+        let pitch = min(max(asin(seno) + dPitch, -limite), limite)
 
         posicion = objetivo + radio * SIMD3<Float>(cos(pitch) * sin(yaw),
                                                    sin(pitch),
