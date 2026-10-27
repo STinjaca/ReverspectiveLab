@@ -59,6 +59,58 @@ mirarlos. Las desviaciones respecto a `REQUISITOS-v0.2.md` van al final.
 
 ---
 
+## R2 — Ver las fotos en pantalla
+
+**Qué se hizo**
+
+- Abajo a la izquierda del visor hay tres miniaturas de 160×160 puntos:
+  **Color** (la foto tal cual), **Distancia** (grises: cerca claro, lejos
+  oscuro, fondo negro) e **ID** (colores falsos: esfera roja, cubo verde,
+  piso azul, fondo negro).
+- Se verificó la orientación con una captura: el piso queda abajo y el cubo
+  a la derecha de la esfera, igual que en la escena.
+
+**Conceptos nuevos**
+
+- **Dibujar sin vertex buffer (`[[vertex_id]]`).** `drawPrimitives(.triangle,
+  vertexStart: 0, vertexCount: 6)` llama al vertex shader 6 veces y le pasa
+  el número de vértice. El shader saca las esquinas de un arreglo fijo. Para
+  un cuadrado que llena la pantalla no hace falta subir datos.
+- **`setViewport`.** Dice en qué rectángulo del drawable cae el espacio NDC
+  (−1…1). Se cambia el viewport antes de cada miniatura y el mismo cuadrado
+  sale en tres lugares. Se da en **píxeles** y con y desde **arriba**; por
+  eso se multiplica por la escala de la pantalla (2 en Retina).
+- **Texturas de enteros (`texture2d<ushort>` + `read`).** La foto de ID es
+  `r16Uint`. No se puede `sample()`, porque el sampler mezcla vecinos y
+  mezclar IDs no tiene sentido. `read(uint2)` lee un píxel exacto en
+  coordenadas de píxel.
+- **Depth state `.always` sin escritura.** Las miniaturas se dibujan en el
+  mismo encoder que la escena, que tiene buffer de profundidad. Con
+  `.always` y sin escribir, quedan siempre encima sin estorbar la escena.
+- **`pushDebugGroup`/`popDebugGroup`.** Ponen nombre a un grupo de órdenes
+  en la captura de GPU de Xcode, para encontrarlas fácil.
+- **`overlay` de SwiftUI.** Las etiquetas son `Text` de SwiftUI encima de la
+  vista Metal (escribir texto en Metal es mucho trabajo). Usan las mismas
+  medidas en puntos que las miniaturas (`Miniaturas.lado`, …), y
+  `allowsHitTesting(false)` deja pasar los gestos a la vista Metal.
+
+**Dónde mirar**
+
+- `Shaders/Shaders.metal` → `vs_miniatura`, `fs_miniatura`, `colorDeID`.
+- `Rendering/Miniaturas.swift` → pipeline, viewport por miniatura.
+- `Rendering/FotosC.swift` → `rangoDistancias()` (d_min y d_max en la CPU).
+- `App/ContentView.swift` → las etiquetas.
+
+**Decisiones**
+
+- Un solo fragment shader con un `tipo` (0, 1, 2) en vez de tres pipelines:
+  las tres fotos comparten el cuadrado y el viewport, y así hay un solo
+  lugar que leer.
+- El gris de la distancia va de 1.0 (lo más cerca) a 0.15 (lo más lejos),
+  no a 0. Así el punto más lejano no se confunde con el fondo negro.
+
+---
+
 ## Desviaciones
 
 _(ninguna por ahora)_
