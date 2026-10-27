@@ -67,8 +67,7 @@ enum Autoprueba {
     /// diferencia lo delataría.
     ///
     /// Pasa si la diferencia media absoluta por canal (RGB) es menor que
-    /// 3/255. Usa la textura de profundidad de las fotos, que está libre
-    /// después de tomarlas.
+    /// 3/255.
     ///
     /// Se deja fuera el anillo de píxeles del borde de la imagen: la malla
     /// va del centro del primer píxel al centro del último, así que los
@@ -79,6 +78,57 @@ enum Autoprueba {
     static func revisarPiezaDesdeC(device: MTLDevice, commandQueue: MTLCommandQueue,
                                    pieza: Pieza, fotos: FotosC, leidas: FotosLeidas,
                                    camaraC: Camara) -> Chequeo {
+        let n = fotos.tamaño
+        // Sin tintes: se compara la textura tal cual.
+        let dibujada = dibujarDesdeC(device: device, commandQueue: commandQueue, pieza: pieza,
+                                     fotos: fotos, camaraC: camaraC,
+                                     interruptores: PiezaUniforms(resaltarParedes: 0, marcarTraseras: 0))
+        var suma = 0, validos = 0
+        for j in 1..<(n - 1) {
+            for i in 1..<(n - 1) where leidas.id[leidas.indice(i, j)] != 0 {
+                let k = leidas.indice(i, j)
+                let a = dibujada[k], b = leidas.color[k]
+                for canal in 0..<3 {    // RGB, sin alfa
+                    suma += abs(Int(a[canal]) - Int(b[canal]))
+                }
+                validos += 1
+            }
+        }
+        let media = Float(suma) / Float(max(validos * 3, 1))
+        return Chequeo(nombre: "Pieza desde C = foto de color (dif. media < 3/255)",
+                       paso: media < 3,
+                       detalle: String(format: "medido %.2f/255 en %d píxeles válidos del interior", media, validos))
+    }
+
+    /// R6.4: desde C ningún triángulo de la pieza se ve por detrás.
+    ///
+    /// Comprueba la orientación de la rejilla (R3.6) junto con
+    /// `setFrontFacing(.counterClockwise)`: dibuja la pieza desde C con y
+    /// sin "caras traseras en azul" y exige que salgan idénticas. Si la
+    /// rejilla estuviera en sentido horario, o Metal tomara el otro sentido
+    /// como frontal, toda la pieza saldría azul.
+    static func revisarCarasDesdeC(device: MTLDevice, commandQueue: MTLCommandQueue,
+                                   pieza: Pieza, fotos: FotosC, camaraC: Camara) -> Chequeo {
+        let normal = dibujarDesdeC(device: device, commandQueue: commandQueue, pieza: pieza,
+                                   fotos: fotos, camaraC: camaraC,
+                                   interruptores: PiezaUniforms(resaltarParedes: 0, marcarTraseras: 0))
+        let conTraseras = dibujarDesdeC(device: device, commandQueue: commandQueue, pieza: pieza,
+                                        fotos: fotos, camaraC: camaraC,
+                                        interruptores: PiezaUniforms(resaltarParedes: 0, marcarTraseras: 1))
+        let distintos = zip(normal, conTraseras).filter { $0 != $1 }.count
+        return Chequeo(nombre: "Desde C no hay caras traseras",
+                       paso: distintos == 0,
+                       detalle: "\(distintos) píxeles azules")
+    }
+
+    /// Dibuja la pieza desde C en una textura de N×N como la foto de color,
+    /// espera a la GPU y la devuelve leída en la CPU.
+    ///
+    /// Usa la textura de profundidad de las fotos, que está libre después
+    /// de tomarlas.
+    private static func dibujarDesdeC(device: MTLDevice, commandQueue: MTLCommandQueue,
+                                      pieza: Pieza, fotos: FotosC, camaraC: Camara,
+                                      interruptores: PiezaUniforms) -> [SIMD4<UInt8>] {
         let n = fotos.tamaño
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: fotos.color.pixelFormat,
                                                                   width: n, height: n, mipmapped: false)
@@ -108,27 +158,13 @@ enum Autoprueba {
                                                            formatoProfundidad: fotos.profundidad.pixelFormat))
         encoder.setDepthStencilState(device.makeDepthStencilState(descriptor: depthDesc)!)
         let viewProjection = camaraC.matrizProyeccion(aspect: 1) * camaraC.matrizVista()
-        pieza.dibujar(encoder: encoder, viewProjection: viewProjection, colorFoto: fotos.color)
+        pieza.dibujar(encoder: encoder, viewProjection: viewProjection, colorFoto: fotos.color,
+                      interruptores: interruptores)
         encoder.endEncoding()
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
 
-        let dibujada = FotosC.copiar(destino, como: SIMD4<UInt8>.self)
-        var suma = 0, validos = 0
-        for j in 1..<(n - 1) {
-            for i in 1..<(n - 1) where leidas.id[leidas.indice(i, j)] != 0 {
-                let k = leidas.indice(i, j)
-                let a = dibujada[k], b = leidas.color[k]
-                for canal in 0..<3 {    // RGB, sin alfa
-                    suma += abs(Int(a[canal]) - Int(b[canal]))
-                }
-                validos += 1
-            }
-        }
-        let media = Float(suma) / Float(max(validos * 3, 1))
-        return Chequeo(nombre: "Pieza desde C = foto de color (dif. media < 3/255)",
-                       paso: media < 3,
-                       detalle: String(format: "medido %.2f/255 en %d píxeles válidos del interior", media, validos))
+        return FotosC.copiar(destino, como: SIMD4<UInt8>.self)
     }
 
     static func imprimir(_ chequeos: [Chequeo]) {

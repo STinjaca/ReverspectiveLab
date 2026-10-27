@@ -50,6 +50,10 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// Los parámetros con que se calculó `geometria`. Si `estado.parametros`
     /// es distinto, la pieza está "sucia" y se recalcula (una vez).
     private var parametrosDibujados: ParametrosInversion
+    /// El τ con que se calcularon `paredes`.
+    private var umbralDibujado: Float
+    /// Qué triángulos de `geometria` son pared.
+    private(set) var paredes: Paredes
     /// Resultado de la inversión actual (posiciones, recortados…).
     private(set) var geometria: GeometriaPieza
     let pieza: Pieza
@@ -138,8 +142,11 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.geometria = GeometriaPieza.calcular(rayos: rayos, origen: escena.camaraC.posicion,
                                                  distancias: fotosLeidas.distancia, ids: fotosLeidas.id,
                                                  parametros: parametrosDibujados, pivotes: pivotes)
+        self.umbralDibujado = estado.umbralPared
+        self.paredes = Paredes.calcular(distancias: geometria.distancias, ids: fotosLeidas.id,
+                                        n: fotos.tamaño, umbral: umbralDibujado)
         self.pieza = Pieza(device: device, library: library, n: fotos.tamaño,
-                           ids: fotosLeidas.id, geometria: geometria)
+                           ids: fotosLeidas.id, geometria: geometria, paredes: paredes)
         self.pipelinePieza = pieza.crearPipeline(formatoColor: vista.colorPixelFormat,
                                                  formatoProfundidad: vista.depthStencilPixelFormat)
         super.init()
@@ -148,32 +155,39 @@ final class Renderer: NSObject, MTKViewDelegate {
         for obj in escena.objetos { nombres[obj.id] = obj.nombre }
         estado.preparar(camaraC: escena.camaraC, pivotes: pivotes, nombresObjetos: nombres)
         estado.porcentajeRecortados = geometria.porcentajeRecortados
+        estado.porcentajeParedes = paredes.porcentaje
 
         #if DEBUG
         var chequeos = Autoprueba.revisarFotos(fotosLeidas)
         chequeos.append(Autoprueba.revisarPiezaDesdeC(device: device, commandQueue: commandQueue,
                                                       pieza: pieza, fotos: fotos, leidas: fotosLeidas,
                                                       camaraC: escena.camaraC))
+        chequeos.append(Autoprueba.revisarCarasDesdeC(device: device, commandQueue: commandQueue,
+                                                      pieza: pieza, fotos: fotos, camaraC: escena.camaraC))
         Autoprueba.imprimir(chequeos)
         estado.autoprueba = chequeos
         #endif
     }
 
-    /// Si la interfaz cambió la estrategia o `s`, vuelve a invertir las
-    /// distancias y sube las posiciones nuevas a la GPU.
+    /// Si la interfaz cambió la estrategia, `s` o τ, vuelve a invertir las
+    /// distancias, recalcula las paredes y sube todo a la GPU.
     ///
     /// Se llama en cada frame, pero solo trabaja cuando los parámetros
     /// cambiaron: comparar dos structs pequeños es casi gratis, y así no
     /// hace falta que la interfaz avise. Mientras se arrastra el slider sí
     /// recalcula en cada frame, porque cada frame trae un `s` distinto.
     private func actualizarPiezaSiCambio() {
-        guard estado.parametros != parametrosDibujados else { return }
+        guard estado.parametros != parametrosDibujados || estado.umbralPared != umbralDibujado else { return }
         parametrosDibujados = estado.parametros
+        umbralDibujado = estado.umbralPared
         geometria = GeometriaPieza.calcular(rayos: rayos, origen: escena.camaraC.posicion,
                                             distancias: fotosLeidas.distancia, ids: fotosLeidas.id,
                                             parametros: parametrosDibujados, pivotes: pivotes)
-        pieza.actualizar(geometria)
+        paredes = Paredes.calcular(distancias: geometria.distancias, ids: fotosLeidas.id,
+                                   n: fotos.tamaño, umbral: umbralDibujado)
+        pieza.actualizar(geometria, paredes: paredes)
         estado.porcentajeRecortados = geometria.porcentajeRecortados
+        estado.porcentajeParedes = paredes.porcentaje
     }
 
     /// Toma las fotos desde C una sola vez, antes del primer frame.
@@ -256,7 +270,10 @@ final class Renderer: NSObject, MTKViewDelegate {
         switch estado.modo {
         case .pieza:
             encoder.setRenderPipelineState(pipelinePieza)
-            pieza.dibujar(encoder: encoder, viewProjection: viewProjection, colorFoto: fotos.color)
+            let interruptores = PiezaUniforms(resaltarParedes: estado.resaltarParedes ? 1 : 0,
+                                              marcarTraseras: estado.marcarTraseras ? 1 : 0)
+            pieza.dibujar(encoder: encoder, viewProjection: viewProjection, colorFoto: fotos.color,
+                          interruptores: interruptores)
         case .escena:
             encoder.setRenderPipelineState(pipelineState)
             dibujarEscena(encoder: encoder, viewProjection: viewProjection)
