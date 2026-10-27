@@ -15,6 +15,11 @@ struct GeometriaPieza {
     /// Cuántos píxeles válidos (ID ≠ 0) hay.
     let validos: Int
 
+    /// Recortados como porcentaje de los válidos, para mostrar en el panel.
+    var porcentajeRecortados: Float {
+        validos > 0 ? 100 * Float(recortados) / Float(validos) : 0
+    }
+
     /// Invierte todas las distancias de las fotos y arma las posiciones.
     ///
     /// Como cada vértice se queda sobre el rayo de su píxel, desde C se ve

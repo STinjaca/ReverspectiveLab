@@ -46,7 +46,7 @@ struct Pivotes {
 }
 
 /// Qué inversión aplicar: la estrategia y sus factores.
-struct ParametrosInversion {
+struct ParametrosInversion: Equatable {
     var estrategia: Estrategia = .global
     /// Factor de inversión del relieve, en [0, 1]. 0 = todo aplanado en el
     /// pivote; 1 = inversión completa. Es el `s_relieve` de R7.

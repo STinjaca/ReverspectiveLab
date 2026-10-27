@@ -29,14 +29,6 @@ struct SceneUniforms {
     var cameraPosition: SIMD3<Float>
 }
 
-/// Qué se ve en el visor.
-enum ModoVista {
-    /// La escena 3D de verdad, con Blinn-Phong.
-    case escena
-    /// La pieza invertida, con la foto de color pegada.
-    case pieza
-}
-
 final class Renderer: NSObject, MTKViewDelegate {
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
@@ -50,16 +42,14 @@ final class Renderer: NSObject, MTKViewDelegate {
     let fotosLeidas: FotosLeidas
     let miniaturas: Miniaturas
 
-    /// Qué se dibuja en el visor (la interfaz lo cambia en R5).
-    var modo: ModoVista = .escena
-
     // --- Pieza invertida ---
     /// Rayos de C por píxel; dependen solo de C y de N.
     let rayos: [SIMD3<Float>]
     /// D y los d_b de cada objeto, sacados de las fotos.
     let pivotes: Pivotes
-    /// Estrategia y factores de la inversión actual.
-    private(set) var parametros = ParametrosInversion()
+    /// Los parámetros con que se calculó `geometria`. Si `estado.parametros`
+    /// es distinto, la pieza está "sucia" y se recalcula (una vez).
+    private var parametrosDibujados: ParametrosInversion
     /// Resultado de la inversión actual (posiciones, recortados…).
     private(set) var geometria: GeometriaPieza
     let pieza: Pieza
@@ -67,9 +57,9 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// d_min…d_max de los píxeles válidos; normaliza la miniatura de distancia.
     let rangoDistancias: ClosedRange<Float>
 
-    /// Resultado de la autoprueba de arranque, para mostrarlo en la
-    /// interfaz. Vacío en Release, donde la autoprueba no corre.
-    private(set) var autoprueba: [Chequeo] = []
+    /// Lo que comparte con la interfaz: modo, inversión, cámara del visor.
+    /// Se lee en cada frame.
+    let estado: EstadoVisor
 
     #if DEBUG
     /// Volver a tomar las fotos en cada frame. La captura de GPU de Xcode
@@ -79,20 +69,19 @@ final class Renderer: NSObject, MTKViewDelegate {
     var fotosEnCadaFrame = false
     #endif
 
-    /// Cámara para mirar la escena en pantalla. Es independiente de
-    /// `escena.camaraC`, que se queda fija para tomar las fotos.
-    var camaraVisor = Camara(posicion: [0, 0, 5], objetivo: [0, 0, 0])
-
-
     // Pipeline "normal": Blinn-Phong real, escribe y prueba profundidad.
     let pipelineState: MTLRenderPipelineState
     let depthState: MTLDepthStencilState
 
     var aspect: Float = 1
 
+    /// - Parameter estado: la cámara del visor vive ahí (`estado.camaraVisor`),
+    ///   separada de `escena.camaraC`, que se queda fija para las fotos.
     init(
-        vista: MTKView
+        vista: MTKView,
+        estado: EstadoVisor
     ) {
+        self.estado = estado
         self.device = vista.device!
         self.commandQueue =
             device
@@ -145,22 +134,46 @@ final class Renderer: NSObject, MTKViewDelegate {
         // La pieza: todo lo que depende solo de las fotos se calcula aquí, una vez.
         self.rayos = escena.camaraC.rayos(n: fotos.tamaño)
         self.pivotes = Pivotes(distancias: fotosLeidas.distancia, ids: fotosLeidas.id)
+        self.parametrosDibujados = estado.parametros
         self.geometria = GeometriaPieza.calcular(rayos: rayos, origen: escena.camaraC.posicion,
                                                  distancias: fotosLeidas.distancia, ids: fotosLeidas.id,
-                                                 parametros: parametros, pivotes: pivotes)
+                                                 parametros: parametrosDibujados, pivotes: pivotes)
         self.pieza = Pieza(device: device, library: library, n: fotos.tamaño,
                            ids: fotosLeidas.id, geometria: geometria)
         self.pipelinePieza = pieza.crearPipeline(formatoColor: vista.colorPixelFormat,
                                                  formatoProfundidad: vista.depthStencilPixelFormat)
         super.init()
 
+        var nombres: [UInt16: String] = [:]
+        for obj in escena.objetos { nombres[obj.id] = obj.nombre }
+        estado.preparar(camaraC: escena.camaraC, pivotes: pivotes, nombresObjetos: nombres)
+        estado.porcentajeRecortados = geometria.porcentajeRecortados
+
         #if DEBUG
-        autoprueba = Autoprueba.revisarFotos(fotosLeidas)
-        autoprueba.append(Autoprueba.revisarPiezaDesdeC(device: device, commandQueue: commandQueue,
-                                                        pieza: pieza, fotos: fotos, leidas: fotosLeidas,
-                                                        camaraC: escena.camaraC))
-        Autoprueba.imprimir(autoprueba)
+        var chequeos = Autoprueba.revisarFotos(fotosLeidas)
+        chequeos.append(Autoprueba.revisarPiezaDesdeC(device: device, commandQueue: commandQueue,
+                                                      pieza: pieza, fotos: fotos, leidas: fotosLeidas,
+                                                      camaraC: escena.camaraC))
+        Autoprueba.imprimir(chequeos)
+        estado.autoprueba = chequeos
         #endif
+    }
+
+    /// Si la interfaz cambió la estrategia o `s`, vuelve a invertir las
+    /// distancias y sube las posiciones nuevas a la GPU.
+    ///
+    /// Se llama en cada frame, pero solo trabaja cuando los parámetros
+    /// cambiaron: comparar dos structs pequeños es casi gratis, y así no
+    /// hace falta que la interfaz avise. Mientras se arrastra el slider sí
+    /// recalcula en cada frame, porque cada frame trae un `s` distinto.
+    private func actualizarPiezaSiCambio() {
+        guard estado.parametros != parametrosDibujados else { return }
+        parametrosDibujados = estado.parametros
+        geometria = GeometriaPieza.calcular(rayos: rayos, origen: escena.camaraC.posicion,
+                                            distancias: fotosLeidas.distancia, ids: fotosLeidas.id,
+                                            parametros: parametrosDibujados, pivotes: pivotes)
+        pieza.actualizar(geometria)
+        estado.porcentajeRecortados = geometria.porcentajeRecortados
     }
 
     /// Toma las fotos desde C una sola vez, antes del primer frame.
@@ -219,7 +232,8 @@ final class Renderer: NSObject, MTKViewDelegate {
             return
         }
         encoder.label = "Visor"
-        
+
+        let camaraVisor = estado.camaraVisor
         let viewProjection = camaraVisor.matrizProyeccion(aspect: aspect)
             * camaraVisor.matrizVista()
         
@@ -236,7 +250,10 @@ final class Renderer: NSObject, MTKViewDelegate {
         
         encoder.setDepthStencilState(depthState)
 
-        switch modo {
+        // También en modo escena: el panel muestra los datos de la inversión.
+        actualizarPiezaSiCambio()
+
+        switch estado.modo {
         case .pieza:
             encoder.setRenderPipelineState(pipelinePieza)
             pieza.dibujar(encoder: encoder, viewProjection: viewProjection, colorFoto: fotos.color)
@@ -292,11 +309,12 @@ final class Renderer: NSObject, MTKViewDelegate {
         switch gesto {
         case let .orbitar(dx, dy):
             let radianesPorPunto: Float = 0.01
-            camaraVisor.orbitar(yaw: -Float(dx) * radianesPorPunto,
-                                pitch: Float(dy) * radianesPorPunto)
+            estado.camaraVisor.orbitar(yaw: -Float(dx) * radianesPorPunto,
+                                       pitch: Float(dy) * radianesPorPunto)
         case let .zoom(magnificacion):
-            // Fuera de la esfera (radio 1) y dentro del far plane (20).
-            camaraVisor.acercar(magnificacion: Float(magnificacion), radio: 1.5...15)
+            // Distancia a P (no al origen): no tan cerca que se entre en la
+            // pieza, y dentro del far plane (20).
+            estado.camaraVisor.acercar(magnificacion: Float(magnificacion), radio: 1.5...15)
         }
     }
 }

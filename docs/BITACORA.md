@@ -222,6 +222,68 @@ mirarlos. Las desviaciones respecto a `REQUISITOS-v0.2.md` van al final.
 
 ---
 
+## R5 — Interfaz de la demo
+
+**Qué se hizo**
+
+- Panel a la derecha (280 puntos) con cuatro secciones: **Vista** (escena
+  original / pieza invertida), **Inversión** (estrategia y `s`), **Cámara**
+  ("Ir a C", "Reiniciar órbita" y θ con un decimal) y **Datos** (pivotes en
+  uso, % recortados y la autoprueba, con el valor medido al pasar el cursor).
+- `EstadoVisor` es el estado que comparten SwiftUI y el `Renderer`. Ahí
+  viven el modo, los parámetros de la inversión y la cámara del visor.
+- La órbita gira alrededor de **P** (el centro de la pieza visto desde C),
+  no del origen. El visor arranca en C mirando a P.
+- P y θ están en el núcleo (`Core/Angulo.swift`), con pruebas.
+- Verificado con capturas a ±10°: en la escena, al orbitar −10° el cubo se
+  pega a la esfera y a +10° se separa; en la pieza pasa **al revés**. Esa
+  es la ilusión.
+
+**Conceptos nuevos**
+
+- **`@Observable`.** Marca una clase para que SwiftUI vigile sus
+  propiedades: cada vista que lee una propiedad se redibuja cuando esa
+  propiedad cambia. No hace falta avisar a mano.
+- **`@State` y `@Bindable`.** `@State` en `ContentView` hace que el
+  `EstadoVisor` viva lo mismo que la ventana. `@Bindable` en el panel deja
+  sacar *bindings* (`$estado.parametros.s`) para conectar pickers y sliders
+  directamente a las propiedades.
+- **Estado compartido con Metal.** El `Renderer` no es una vista de SwiftUI:
+  simplemente guarda una referencia al mismo `EstadoVisor` y lo lee en cada
+  `draw`. Las dos partes corren en el hilo principal, así que no hay
+  carreras.
+- **Detectar "sucio" comparando.** `ParametrosInversion` es `Equatable`. En
+  cada frame, el `Renderer` compara los parámetros del estado con los que
+  usó la última vez; si cambiaron, recalcula la pieza una vez. Así la
+  interfaz no tiene que avisar a nadie.
+- **Propiedad calculada (`var theta: Float? { … }`).** θ no se guarda: se
+  calcula cada vez que se lee, a partir de la cámara actual. Nunca queda
+  desactualizado.
+- **`atan2(|a×b|, a·b)` para ángulos.** Da el ángulo entre dos vectores sin
+  los problemas de `acos` cerca de 0° (pérdida de precisión, o NaN si el
+  redondeo deja el coseno en 1.0000001).
+
+**Dónde mirar**
+
+- `App/EstadoVisor.swift` → `preparar`, `irAC`, `reiniciarOrbita`, `theta`.
+- `App/PanelControl.swift` → el panel.
+- `Rendering/Renderer.swift` → `actualizarPiezaSiCambio`, `aplicar(_:)`.
+- `Core/Angulo.swift` → `puntoP`, `anguloTheta`.
+
+**Decisiones**
+
+- "Ir a C" pone el visor exactamente en C (posición y distancia). "Reiniciar
+  órbita" vuelve a θ = 0 pero conserva el zoom. En esta escena el visor
+  arranca en C, así que al principio los dos hacen lo mismo.
+- La pieza se recalcula también en modo escena, para que el % de
+  recortados del panel esté al día aunque no se esté viendo la pieza.
+- El selector de estrategia muestra solo Global y Por objeto; "Híbrida"
+  llega con su slider en R7.
+- `ModoVista` pasó de `Renderer.swift` a `EstadoVisor.swift`, porque ahora
+  es parte del estado compartido.
+
+---
+
 ## Desviaciones
 
 - **R4.5 compara solo el interior de la imagen.** Contando todos los píxeles
