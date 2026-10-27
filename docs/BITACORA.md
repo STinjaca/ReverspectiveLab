@@ -345,6 +345,40 @@ Medido en la escena de prueba (τ = 0.08):
 
 ---
 
+## R7 — Estrategia híbrida
+
+**Qué se hizo**
+
+- R7.1 ya estaba hecho desde R3: el núcleo usa una sola fórmula,
+  `d' = [D + (D − d_b)·s_orden] + (d_b − d)·s_relieve`, y "Global" y "Por
+  objeto" son casos con nombre (`ParametrosInversion.sOrden`). Una prueba
+  confirma que reproduce exactamente las dos fórmulas de R3.5. El recorte
+  aplica igual a las tres.
+- R7.2: el selector de estrategia muestra **Híbrida**. En ese modo aparece
+  un segundo slider, `s_orden` (−1 a 1, por defecto 0.5). El slider `s` de
+  siempre es `s_relieve`. En Datos se ven D y los pivotes por objeto.
+
+**Conceptos nuevos**
+
+- **`ForEach(Estrategia.allCases, …)`.** `CaseIterable` le da al enum la
+  lista de todos sus casos. El selector se arma solo, y si algún día se
+  agrega una estrategia aparece sin tocar el panel.
+- **Vistas condicionales (`if` dentro de `body`).** SwiftUI permite `if` en
+  la descripción de la vista: el slider de `s_orden` existe solo cuando la
+  estrategia es híbrida.
+
+**Dónde mirar**
+
+- `Core/Inversion.swift` → `distanciaInvertida`, `ParametrosInversion.sOrden`.
+- `App/PanelControl.swift` → sección Inversión y `pivotes`.
+
+**Para probar a mano**
+
+- Con Híbrida, `s_orden = s` debe verse igual que Global, y `s_orden = −1`
+  igual que Por objeto (el % de paredes del panel debe coincidir).
+
+---
+
 ## Desviaciones
 
 - **R4.5 compara solo el interior de la imagen.** Contando todos los píxeles
