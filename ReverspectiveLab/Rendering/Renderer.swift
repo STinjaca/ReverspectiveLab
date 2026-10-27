@@ -39,6 +39,14 @@ final class Renderer: NSObject, MTKViewDelegate {
     let fotos: FotosC
     let pasadaFotos: PasadaFotos
 
+    #if DEBUG
+    /// Volver a tomar las fotos en cada frame. La captura de GPU de Xcode
+    /// solo muestra lo que pasa dentro de un frame: con esto en `true` la
+    /// pasada de las fotos aparece en la captura. Las fotos salen iguales,
+    /// porque la escena y C no cambian.
+    var fotosEnCadaFrame = false
+    #endif
+
     /// Cámara para mirar la escena en pantalla. Es independiente de
     /// `escena.camaraC`, que se queda fija para tomar las fotos.
     var camaraVisor = Camara(posicion: [0, 0, 5], objetivo: [0, 0, 0])
@@ -98,11 +106,24 @@ final class Renderer: NSObject, MTKViewDelegate {
             )!
         super.init()
 
-        // Verificación temporal: las cuatro fotos existen con su tamaño y formato.
-        for textura in [fotos.color, fotos.distancia, fotos.id, fotos.profundidad] {
-            let nombre = (textura.label ?? "?").padding(toLength: 18, withPad: " ", startingAt: 0)
-            print("\(nombre)\(textura.width)×\(textura.height)  \(textura.pixelFormat)")
+        tomarFotos()
+    }
+
+    /// Toma las fotos desde C una sola vez, antes del primer frame.
+    ///
+    /// La escena y C no cambian, así que repetirlas en cada frame sería
+    /// trabajo perdido. Usa un command buffer propio y espera a que la GPU
+    /// termine (`waitUntilCompleted`): así, al volver, las texturas ya tienen
+    /// los datos y la CPU las puede leer. Esperar bloquea el hilo, pero pasa
+    /// una vez al arrancar y la pasada es pequeña.
+    private func tomarFotos() {
+        guard let commandBuffer = commandQueue.makeCommandBuffer() else {
+            fatalError("No se pudo crear el command buffer de las fotos")
         }
+        commandBuffer.label = "Fotos C (arranque)"
+        pasadaFotos.tomar(escena: escena, fotos: fotos, commandBuffer: commandBuffer)
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
     }
 
     func mtkView(
@@ -124,10 +145,14 @@ final class Renderer: NSObject, MTKViewDelegate {
             return
         }
 
-        // Primero las fotos desde C. Por ahora en cada frame: la captura de
-        // GPU solo muestra lo que pasa dentro de un frame. Un command buffer
-        // admite un encoder abierto a la vez, así que el del visor se abre después.
-        pasadaFotos.tomar(escena: escena, fotos: fotos, commandBuffer: commandBuffer)
+        #if DEBUG
+        // Solo para verlas en la captura de GPU (ver `fotosEnCadaFrame`).
+        // Un command buffer admite un encoder abierto a la vez, así que el
+        // del visor se abre después.
+        if fotosEnCadaFrame {
+            pasadaFotos.tomar(escena: escena, fotos: fotos, commandBuffer: commandBuffer)
+        }
+        #endif
 
         guard let encoder = commandBuffer.makeRenderCommandEncoder(
             descriptor: descriptor
