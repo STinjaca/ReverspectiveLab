@@ -214,3 +214,51 @@ fragment float4 fs_miniatura(MiniaturaOut in [[stage_in]],
 
     return float4(colorDeID(objeto), 1.0);
 }
+
+// MARK: - Pieza invertida
+
+/// Un vértice de la pieza. Llega de dos buffers distintos (ver
+/// `Pieza.descriptorVertices` en Swift): la posición cambia con la
+/// inversión, la UV y la marca de válido no.
+struct PiezaIn {
+    float3 posicion [[attribute(0)]];   // buffer 0: dinámico
+    float2 uv       [[attribute(1)]];   // buffer 1: estático
+    float  valido   [[attribute(2)]];   // buffer 1: 1 = objeto, 0 = fondo
+};
+
+struct PiezaOut {
+    float4 position [[position]];
+    float2 uv;
+    float  valido;      // interpolado: < 1 si el triángulo toca el fondo
+};
+
+/// Vertex shader de la pieza: solo proyecta. Las posiciones ya están en el
+/// mundo (las calculó la CPU con el núcleo), así que no hay matriz de modelo.
+vertex PiezaOut vs_pieza(PiezaIn in [[stage_in]],
+                         constant float4x4 &viewProjection [[buffer(2)]]) {
+    PiezaOut out;
+    out.position = viewProjection * float4(in.posicion, 1.0);
+    out.uv = in.uv;
+    out.valido = in.valido;
+    return out;
+}
+
+/// Fragment shader de la pieza: la foto de color pegada como textura.
+///
+/// **Sin iluminación:** la luz ya está "pintada" en la foto. Si se volviera
+/// a iluminar, las sombras saldrían dos veces y, peor, con la geometría
+/// invertida, que es justo lo que la ilusión tiene que esconder.
+///
+/// **Fondo:** los índices de la rejilla no saben qué píxeles son fondo,
+/// así que hay triángulos que unen un objeto con el fondo. La marca
+/// `valido` vale 1 en los vértices de objetos y 0 en los de fondo; al
+/// interpolarla, cualquier punto de un triángulo que toque el fondo queda
+/// por debajo de 1, y se descarta.
+fragment float4 fs_pieza(PiezaOut in [[stage_in]],
+                         texture2d<float> color [[texture(0)]]) {
+    if (in.valido < 0.999) {
+        discard_fragment();
+    }
+    constexpr sampler lineal(filter::linear, address::clamp_to_edge);
+    return float4(color.sample(lineal, in.uv).rgb, 1.0);
+}

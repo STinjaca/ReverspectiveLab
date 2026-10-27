@@ -166,6 +166,68 @@ mirarlos. Las desviaciones respecto a `REQUISITOS-v0.2.md` van al final.
 
 ---
 
+## R4 — La pieza invertida en el visor
+
+**Qué se hizo**
+
+- `Pieza` (en `Rendering/`) lleva la malla rejilla a la GPU: un vértice por
+  píxel, en las posiciones que calcula el núcleo, con la foto de color como
+  textura y sin iluminación.
+- El `Renderer` tiene un `modo` (`.escena` / `.pieza`). La interfaz para
+  cambiarlo llega en R5.
+- El loop que dibuja la escena pasó a su propio método, `dibujarEscena`.
+- Nueva autoprueba: se dibuja la pieza desde C y se compara con la foto de
+  color. Resultado: **0.00/255** de diferencia media en 36 129 píxeles.
+
+**Conceptos nuevos**
+
+- **`MTLVertexDescriptor` con dos buffers.** Un vértice puede armarse con
+  datos de varios buffers. Aquí la posición viene del buffer 0 (cambia con
+  cada inversión) y la UV y la marca de válido del buffer 1 (fijos). El
+  descriptor dice qué atributo sale de qué buffer, con qué offset y stride.
+- **`SIMD3<Float>` mide 16 bytes, no 12.** Swift la alinea como un float4.
+  Por eso el stride del buffer de posiciones se mide con
+  `MemoryLayout<SIMD3<Float>>.stride`, y no se escribe a mano.
+- **`drawIndexedPrimitives` con `.triangleStrip` y `.uint32`.** Toda la malla
+  sale en una sola llamada; el `0xFFFFFFFF` de la rejilla separa las filas.
+- **`discard_fragment()`.** El fragment shader puede decidir no pintar un
+  píxel. La marca "válido" (1 en objetos, 0 en fondo) se interpola en el
+  triángulo; si queda por debajo de 1, el triángulo toca el fondo y se
+  descarta. Así se borra el fondo sin cambiar los índices.
+- **Buffer nuevo en vez de sobrescribir.** La GPU puede estar dibujando un
+  frame anterior con el buffer de posiciones. Si se escribe encima mientras
+  lo lee, sale un frame mezclado. Crear uno nuevo es lo más simple: el
+  command buffer en vuelo retiene el viejo y después se libera solo.
+- **Dibujar en una textura y leerla (autoprueba).** Igual que las fotos: un
+  render pass a mano sobre una textura `.shared`, `waitUntilCompleted` y
+  `getBytes`.
+- **Regla top-left de rasterización.** Un píxel cuyo centro cae justo sobre
+  el borde de un triángulo se pinta solo si es el borde de arriba o el de la
+  izquierda. Así dos triángulos vecinos no pintan dos veces el mismo píxel.
+  Es lo que deja sin pintar la última fila y la última columna de la pieza
+  (ver Desviaciones).
+
+**Dónde mirar**
+
+- `Rendering/Pieza.swift` → buffers, `descriptorVertices`, `actualizar`, `dibujar`.
+- `Shaders/Shaders.metal` → `vs_pieza`, `fs_pieza`.
+- `Rendering/Renderer.swift` → `ModoVista`, el `switch modo` en `draw`.
+- `Rendering/Autoprueba.swift` → `revisarPiezaDesdeC`.
+
+**Deuda que sigue**
+
+- El loop de la escena sigue duplicado entre `Renderer.dibujarEscena` y
+  `PasadaFotos.tomar`. La pieza no lo usa (dibuja con una sola llamada), así
+  que no apareció una tercera copia.
+
+---
+
 ## Desviaciones
 
-_(ninguna por ahora)_
+- **R4.5 compara solo el interior de la imagen.** Contando todos los píxeles
+  válidos, la diferencia daba 2.44/255: pasaba, pero justo. El diagnóstico
+  mostró que salía toda de 383 píxeles negros, todos en el borde de la
+  imagen y ninguno junto al fondo. La malla va del centro del primer píxel
+  al centro del último, así que la última fila y la última columna caen
+  sobre su borde derecho e inferior, y la regla top-left no las pinta. Se
+  excluye el anillo de un píxel del borde; el resultado es 0.00/255.

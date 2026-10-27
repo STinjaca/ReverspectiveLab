@@ -4,6 +4,9 @@
 //  del pipeline se rompe (una fila al revés, un formato mal leído), se ve
 //  aquí antes que en la pantalla.
 
+import Metal
+import simd
+
 /// Un chequeo de la autoprueba: qué se revisó, si pasó y qué se midió.
 struct Chequeo {
     let nombre: String
@@ -52,6 +55,80 @@ enum Autoprueba {
                            detalle: "\(pixelesPiso) de \(n) píxeles")
 
         return [distancia, esfera, fondo, piso]
+    }
+
+    /// R4.5: dibuja la pieza desde C en una textura de N×N y la compara con
+    /// la foto de color en los píxeles válidos.
+    ///
+    /// Es el invariante central de la reverspectiva: como cada vértice se
+    /// quedó sobre el rayo de su píxel, desde C la pieza tiene que verse
+    /// igual que la escena original, aunque su relieve esté al revés. Si
+    /// los rayos, la UV o la orientación de la rejilla estuvieran mal, la
+    /// diferencia lo delataría.
+    ///
+    /// Pasa si la diferencia media absoluta por canal (RGB) es menor que
+    /// 3/255. Usa la textura de profundidad de las fotos, que está libre
+    /// después de tomarlas.
+    ///
+    /// Se deja fuera el anillo de píxeles del borde de la imagen: la malla
+    /// va del centro del primer píxel al centro del último, así que los
+    /// centros de la última fila y la última columna caen justo sobre su
+    /// borde, y la regla de rasterización de la GPU (no pinta los bordes
+    /// derecho e inferior de un triángulo) los deja sin pintar. Contarlos
+    /// mezclaría ese detalle con errores de verdad.
+    static func revisarPiezaDesdeC(device: MTLDevice, commandQueue: MTLCommandQueue,
+                                   pieza: Pieza, fotos: FotosC, leidas: FotosLeidas,
+                                   camaraC: Camara) -> Chequeo {
+        let n = fotos.tamaño
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: fotos.color.pixelFormat,
+                                                                  width: n, height: n, mipmapped: false)
+        descriptor.usage = [.renderTarget]
+        descriptor.storageMode = .shared
+        let destino = device.makeTexture(descriptor: descriptor)!
+        destino.label = "Autoprueba: pieza desde C"
+
+        let pasada = MTLRenderPassDescriptor()
+        pasada.colorAttachments[0].texture = destino
+        pasada.colorAttachments[0].loadAction = .clear
+        pasada.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+        pasada.colorAttachments[0].storeAction = .store
+        pasada.depthAttachment.texture = fotos.profundidad
+        pasada.depthAttachment.loadAction = .clear
+        pasada.depthAttachment.clearDepth = 1
+        pasada.depthAttachment.storeAction = .dontCare
+
+        let depthDesc = MTLDepthStencilDescriptor()
+        depthDesc.depthCompareFunction = .less
+        depthDesc.isDepthWriteEnabled = true
+
+        let commandBuffer = commandQueue.makeCommandBuffer()!
+        commandBuffer.label = "Autoprueba: pieza desde C"
+        let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pasada)!
+        encoder.setRenderPipelineState(pieza.crearPipeline(formatoColor: destino.pixelFormat,
+                                                           formatoProfundidad: fotos.profundidad.pixelFormat))
+        encoder.setDepthStencilState(device.makeDepthStencilState(descriptor: depthDesc)!)
+        let viewProjection = camaraC.matrizProyeccion(aspect: 1) * camaraC.matrizVista()
+        pieza.dibujar(encoder: encoder, viewProjection: viewProjection, colorFoto: fotos.color)
+        encoder.endEncoding()
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+
+        let dibujada = FotosC.copiar(destino, como: SIMD4<UInt8>.self)
+        var suma = 0, validos = 0
+        for j in 1..<(n - 1) {
+            for i in 1..<(n - 1) where leidas.id[leidas.indice(i, j)] != 0 {
+                let k = leidas.indice(i, j)
+                let a = dibujada[k], b = leidas.color[k]
+                for canal in 0..<3 {    // RGB, sin alfa
+                    suma += abs(Int(a[canal]) - Int(b[canal]))
+                }
+                validos += 1
+            }
+        }
+        let media = Float(suma) / Float(max(validos * 3, 1))
+        return Chequeo(nombre: "Pieza desde C = foto de color (dif. media < 3/255)",
+                       paso: media < 3,
+                       detalle: String(format: "medido %.2f/255 en %d píxeles válidos del interior", media, validos))
     }
 
     static func imprimir(_ chequeos: [Chequeo]) {

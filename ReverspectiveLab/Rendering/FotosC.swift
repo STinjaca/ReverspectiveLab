@@ -52,7 +52,7 @@ struct FotosC {
     /// fila 0 arriba (el mismo orden de la textura). `T` tiene que medir
     /// lo mismo que un píxel del formato: 4 bytes para rgba8Unorm, 4 para
     /// r32Float y 2 para r16Uint.
-    private static func copiar<T>(_ textura: MTLTexture, como _: T.Type) -> [T] {
+    static func copiar<T>(_ textura: MTLTexture, como _: T.Type) -> [T] {
         let ancho = textura.width, alto = textura.height
         let bytesPorPixel = MemoryLayout<T>.stride
         return [T](unsafeUninitializedCapacity: ancho * alto) { destino, cuantos in
