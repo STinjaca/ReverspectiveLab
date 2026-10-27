@@ -35,7 +35,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     
     let escena: Escena
 
-    /// Texturas de 256×256 donde la cámara C toma las fotos.
+    /// Texturas de N×N donde la cámara C toma las fotos (N en `FotosC`).
     let fotos: FotosC
     let pasadaFotos: PasadaFotos
     /// Copia de las fotos en la CPU, leída una vez después de tomarlas.

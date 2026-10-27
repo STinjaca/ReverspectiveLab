@@ -49,7 +49,7 @@ enum EscenaPrueba {
                          color: [1.0, 1.0, 1.0, 1.0]),
         ]
 
-        // La foto es cuadrada (256×256), así que esta cámara siempre usa aspecto 1.
+        // La foto es cuadrada (N×N), así que esta cámara siempre usa aspecto 1.
         let camaraC = Camara(posicion: [0, 0, 5], objetivo: [0, 0, 0], fovGrados: 45)
 
         return Escena(objetos: objetos, camaraC: camaraC, luz: [3, 5, 4])
