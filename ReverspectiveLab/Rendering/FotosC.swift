@@ -97,4 +97,13 @@ struct FotosLeidas {
     let id: [UInt16]
 
     func indice(_ i: Int, _ j: Int) -> Int { j * tamaño + i }
+
+    /// Distancias mínima y máxima entre los píxeles válidos (ID ≠ 0). Se
+    /// filtra por ID y no por `d == 0` porque el ID es el que dice qué es
+    /// fondo.
+    func rangoDistancias() -> ClosedRange<Float> {
+        let validas = zip(distancia, id).filter { $0.1 != 0 }.map(\.0)
+        guard let menor = validas.min(), let mayor = validas.max() else { return 0...1 }
+        return menor...mayor
+    }
 }

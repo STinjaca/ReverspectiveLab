@@ -40,6 +40,9 @@ final class Renderer: NSObject, MTKViewDelegate {
     let pasadaFotos: PasadaFotos
     /// Copia de las fotos en la CPU, leída una vez después de tomarlas.
     let fotosLeidas: FotosLeidas
+    let miniaturas: Miniaturas
+    /// d_min…d_max de los píxeles válidos; normaliza la miniatura de distancia.
+    let rangoDistancias: ClosedRange<Float>
 
     /// Resultado de la autoprueba de arranque, para mostrarlo en la
     /// interfaz. Vacío en Release, donde la autoprueba no corre.
@@ -113,6 +116,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         self.fotosLeidas = Self.tomarFotos(commandQueue: commandQueue, pasada: pasadaFotos,
                                            escena: escena, fotos: fotos)
+        self.rangoDistancias = fotosLeidas.rangoDistancias()
+        self.miniaturas = Miniaturas(device: device, library: library, vista: vista)
         super.init()
 
         #if DEBUG
@@ -234,6 +239,11 @@ final class Renderer: NSObject, MTKViewDelegate {
                 )
             }
         }
+
+        // Al final, porque cambia el viewport del encoder.
+        let escala = view.bounds.width > 0 ? view.drawableSize.width / view.bounds.width : 1
+        miniaturas.dibujar(encoder: encoder, fotos: fotos, rango: rangoDistancias,
+                           escala: escala, altoPixeles: view.drawableSize.height)
 
         encoder
             .endEncoding()

@@ -133,3 +133,84 @@ fragment FotosDesdeC fs_fotos(VertexOut in [[stage_in]],
     out.id = ushort(uniforms.objetoID);
     return out;
 }
+
+// MARK: - Miniaturas de las fotos
+
+/// Qué se le pasa a `fs_miniatura` para cada foto (buffer 0 del fragment).
+/// El mismo struct existe en Swift (`MiniaturaUniforms` en Miniaturas.swift):
+/// si se cambia uno, se cambia el otro en el mismo commit.
+struct MiniaturaUniforms {
+    uint  tipo;     // 0 = color, 1 = distancia, 2 = ID
+    float dMin;     // distancia mínima entre los píxeles válidos
+    float dMax;     // distancia máxima entre los píxeles válidos
+};
+
+struct MiniaturaOut {
+    float4 position [[position]];
+    float2 uv;
+};
+
+/// Un cuadrado que llena todo el viewport, sin vertex buffer: con
+/// `drawPrimitives(.triangle, vertexCount: 6)` Metal llama a esta función 6
+/// veces, y `[[vertex_id]]` dice cuál de los 6 vértices toca. El tamaño y la
+/// posición en pantalla los decide `setViewport` en Swift.
+vertex MiniaturaOut vs_miniatura(uint vid [[vertex_id]]) {
+    // Dos triángulos en NDC: (−1, −1) es la esquina inferior izquierda.
+    const float2 esquinas[6] = { {-1, -1}, {1, -1}, {-1, 1},
+                                 {-1,  1}, {1, -1}, { 1, 1} };
+    float2 p = esquinas[vid];
+
+    MiniaturaOut out;
+    out.position = float4(p, 0.0, 1.0);
+    // En NDC y crece hacia arriba; en las texturas la fila 0 está arriba.
+    // Por eso v = (1 − y)/2: el borde de arriba del cuadrado lee la fila 0.
+    out.uv = float2((p.x + 1.0) * 0.5, (1.0 - p.y) * 0.5);
+    return out;
+}
+
+/// Colores falsos fijos por ID: 0 (fondo) negro y luego colores bien
+/// distintos entre sí. Del 4 en adelante se repiten.
+float3 colorDeID(ushort id) {
+    if (id == 0) { return float3(0.0); }
+    const float3 paleta[4] = { {0.95, 0.30, 0.25},    // 1 esfera: rojo
+                               {0.25, 0.80, 0.35},    // 2 cubo: verde
+                               {0.25, 0.45, 0.95},    // 3 piso: azul
+                               {0.95, 0.85, 0.20} };  // 4: amarillo
+    return paleta[(id - 1) % 4];
+}
+
+/// Pinta una de las tres fotos según `u.tipo`.
+///
+/// La foto de ID es `r16Uint`, una textura de enteros: se declara como
+/// `texture2d<ushort>` y se lee con `read(uint2)` en coordenadas de píxel.
+/// `sample()` no sirve con texturas enteras, porque mezclar (filtrar) IDs
+/// no tiene sentido: el promedio entre la esfera (1) y el piso (3) no es el
+/// cubo (2). La distancia también se lee con `read`, para ver los valores
+/// tal cual, sin mezclar.
+fragment float4 fs_miniatura(MiniaturaOut in [[stage_in]],
+                             constant MiniaturaUniforms &u [[buffer(0)]],
+                             texture2d<float>  color     [[texture(0)]],
+                             texture2d<float>  distancia [[texture(1)]],
+                             texture2d<ushort> id        [[texture(2)]]) {
+    if (u.tipo == 0) {
+        constexpr sampler lineal(filter::linear);
+        return float4(color.sample(lineal, in.uv).rgb, 1.0);
+    }
+
+    // De UV (0…1) a píxel (0…N−1). El min evita salirse en uv = 1.
+    uint2 tam = uint2(id.get_width(), id.get_height());
+    uint2 pixel = min(uint2(in.uv * float2(tam)), tam - 1);
+    ushort objeto = id.read(pixel).r;
+
+    if (u.tipo == 1) {
+        if (objeto == 0) { return float4(0.0, 0.0, 0.0, 1.0); }   // fondo: el ID manda
+        float d = distancia.read(pixel).r;
+        float t = saturate((d - u.dMin) / (u.dMax - u.dMin));    // 0 = cerca, 1 = lejos
+        // Cerca claro, lejos oscuro. El gris no baja de 0.15 para que lo más
+        // lejano no se confunda con el fondo negro.
+        float gris = mix(1.0, 0.15, t);
+        return float4(float3(gris), 1.0);
+    }
+
+    return float4(colorDeID(objeto), 1.0);
+}
