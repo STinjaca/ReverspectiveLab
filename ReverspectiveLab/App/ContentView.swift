@@ -1,8 +1,12 @@
 import SwiftUI
 
 struct ContentView: View {
+    /// `@State` hace que el estado viva lo mismo que la ventana, y no se
+    /// cree de nuevo cada vez que SwiftUI recalcula `body`.
+    @State private var estado = EstadoVisor()
+
     var body: some View {
-        MetalView()
+        MetalView(estado: estado)
             .frame(minWidth: 800, minHeight: 600)
             .overlay(alignment: .bottomLeading) { etiquetasMiniaturas }
     }
