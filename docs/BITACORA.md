@@ -403,3 +403,23 @@ Medido en la escena de prueba (τ = 0.08):
   Queda para que Santiago decida: cambiar la definición de pared, cambiar
   la expectativa o usar la híbrida (R7) para estudiarlo. No se forzó el
   resultado.
+
+---
+
+## Cómo correr la demo
+
+1. Abrir `ReverspectiveLab.xcodeproj` y correr en Debug (⌘R). Revisar que
+   el panel diga **Autoprueba ✓ 6/6**. Se ve la escena original con las
+   tres fotos en miniatura: color, distancia en grises e ID en colores.
+2. En **Vista**, elegir **Pieza invertida** y pulsar **Ir a C**. La pieza se
+   ve idéntica a la escena, aunque su relieve está al revés.
+3. Orbitar despacio unos ±10° (θ en el panel). La escena parece girar en
+   sentido contrario: la esfera "convexa" es en realidad un cuenco y sigue
+   al observador.
+4. Orbitar más y activar **Resaltar paredes**. Aparecen en rojo los
+   triángulos estirados donde se rompe la ilusión; el panel muestra θ y el
+   % de paredes.
+5. Mover el slider **s** (0 = plano, 1 = inversión completa) y cambiar la
+   **estrategia** (Global / Por objeto / Híbrida) para ver cómo cambian las
+   paredes. Ojo: en esta escena Por objeto no da menos paredes que Global
+   (ver Desviaciones).
