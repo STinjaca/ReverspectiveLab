@@ -108,7 +108,9 @@ enum Autoprueba {
                                                            formatoProfundidad: fotos.profundidad.pixelFormat))
         encoder.setDepthStencilState(device.makeDepthStencilState(descriptor: depthDesc)!)
         let viewProjection = camaraC.matrizProyeccion(aspect: 1) * camaraC.matrizVista()
-        pieza.dibujar(encoder: encoder, viewProjection: viewProjection, colorFoto: fotos.color)
+        // Sin tintes: se compara la textura tal cual.
+        pieza.dibujar(encoder: encoder, viewProjection: viewProjection, colorFoto: fotos.color,
+                      interruptores: PiezaUniforms(resaltarParedes: 0, marcarTraseras: 0))
         encoder.endEncoding()
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()

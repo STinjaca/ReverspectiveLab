@@ -30,6 +30,15 @@ struct PanelControl: View {
                 }
             }
 
+            Section("Paredes") {
+                Toggle("Resaltar paredes", isOn: $estado.resaltarParedes)
+                LabeledContent("τ = \(estado.umbralPared, format: .number.precision(.fractionLength(2)))") {
+                    Slider(value: $estado.umbralPared, in: 0.01...0.3)
+                }
+                .help("Diferencia relativa de d' entre vértices a partir de la cual un triángulo es pared")
+                Toggle("Caras traseras en azul", isOn: $estado.marcarTraseras)
+            }
+
             Section("Cámara") {
                 HStack {
                     Button("Ir a C") { estado.irAC() }
@@ -43,6 +52,10 @@ struct PanelControl: View {
 
             Section("Datos") {
                 pivotes
+                LabeledContent("Paredes") {
+                    Text("\(estado.porcentajeParedes, format: .number.precision(.fractionLength(1))) % de triángulos")
+                        .monospacedDigit()
+                }
                 LabeledContent("Recortados") {
                     Text("\(estado.porcentajeRecortados, format: .number.precision(.fractionLength(1))) %")
                         .monospacedDigit()

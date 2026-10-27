@@ -12,6 +12,14 @@ struct VerticeFijo {
     var valido: Float       // 1 = objeto, 0 = fondo
 }
 
+/// Interruptores de `fs_pieza` (buffer 0 del fragment). Tiene que medir
+/// lo mismo que el struct de Metal (8 bytes): si se cambia uno, se cambia
+/// el otro en el mismo commit.
+struct PiezaUniforms {
+    var resaltarParedes: UInt32     // 0 o 1
+    var marcarTraseras: UInt32      // 0 o 1
+}
+
 final class Pieza {
 
     /// Índices del buffer de vértices en el vertex shader. El 2 es para la
@@ -20,18 +28,25 @@ final class Pieza {
     static let bufferFijo = 1
     static let bufferViewProjection = 2
 
-    /// Dos buffers por vértice: posiciones en el 0 y lo fijo en el 1.
+    /// Dos buffers por vértice: lo dinámico en el 0 y lo fijo en el 1.
     ///
-    /// Van separados porque cambian a ritmos distintos: las posiciones se
-    /// recalculan con cada cambio de estrategia o de `s`; la UV y la marca
-    /// de válido solo si cambian las fotos. Así se sube solo lo que cambió.
+    /// Van separados porque cambian a ritmos distintos: las posiciones y la
+    /// marca de pared se recalculan con cada cambio de estrategia o de `s`;
+    /// la UV y la marca de válido solo si cambian las fotos. Así se sube
+    /// solo lo que cambió.
+    ///
+    /// En el buffer 0 cada vértice es un `SIMD4<Float>`: xyz = posición y
+    /// w = marca de pared. Una posición sola (`SIMD3`) ya ocupaba 16 bytes
+    /// por la alineación, así que la marca va en ese hueco, gratis.
     static let descriptorVertices: MTLVertexDescriptor = {
         let d = MTLVertexDescriptor()
         d.attributes[0].format = .float3
         d.attributes[0].offset = 0
         d.attributes[0].bufferIndex = bufferPosiciones
-        // SIMD3<Float> ocupa 16 bytes en Swift (alineado como float4).
-        d.layouts[bufferPosiciones].stride = MemoryLayout<SIMD3<Float>>.stride
+        d.attributes[3].format = .float
+        d.attributes[3].offset = 3 * MemoryLayout<Float>.stride   // la w
+        d.attributes[3].bufferIndex = bufferPosiciones
+        d.layouts[bufferPosiciones].stride = MemoryLayout<SIMD4<Float>>.stride
 
         d.attributes[1].format = .float2
         d.attributes[1].offset = MemoryLayout<VerticeFijo>.offset(of: \.uv)!
@@ -55,8 +70,9 @@ final class Pieza {
     ///
     /// - Parameters:
     ///   - ids: la foto de ID, para la marca de válido.
-    ///   - geometria: posiciones iniciales (ver `actualizar`).
-    init(device: MTLDevice, library: MTLLibrary, n: Int, ids: [UInt16], geometria: GeometriaPieza) {
+    ///   - geometria, paredes: posiciones y marcas iniciales (ver `actualizar`).
+    init(device: MTLDevice, library: MTLLibrary, n: Int, ids: [UInt16],
+         geometria: GeometriaPieza, paredes: Paredes) {
         self.device = device
         self.library = library
 
@@ -80,10 +96,11 @@ final class Pieza {
         indices.label = "Pieza: índices"
         self.cantidadIndices = rejilla.count
 
-        self.posiciones = Self.crearBufferPosiciones(device: device, geometria: geometria)
+        self.posiciones = Self.crearBufferPosiciones(device: device, geometria: geometria, paredes: paredes)
     }
 
-    /// Cambia las posiciones de la pieza por las de `geometria`.
+    /// Cambia las posiciones de la pieza por las de `geometria`, y las
+    /// marcas de pared por las de `paredes`.
     ///
     /// Crea un buffer nuevo en vez de escribir encima del viejo: la GPU
     /// puede estar todavía dibujando un frame anterior con el buffer viejo,
@@ -91,13 +108,16 @@ final class Pieza {
     /// command buffer de ese frame retiene el buffer viejo hasta terminar;
     /// después se libera solo. Es 1 MB y solo pasa cuando cambia la
     /// inversión, no en cada frame.
-    func actualizar(_ geometria: GeometriaPieza) {
-        posiciones = Self.crearBufferPosiciones(device: device, geometria: geometria)
+    func actualizar(_ geometria: GeometriaPieza, paredes: Paredes) {
+        posiciones = Self.crearBufferPosiciones(device: device, geometria: geometria, paredes: paredes)
     }
 
-    private static func crearBufferPosiciones(device: MTLDevice, geometria: GeometriaPieza) -> MTLBuffer {
-        let buffer = device.makeBuffer(bytes: geometria.posiciones,
-                                       length: geometria.posiciones.count * MemoryLayout<SIMD3<Float>>.stride,
+    /// Junta posición (xyz) y marca de pared (w) de cada vértice en un buffer.
+    private static func crearBufferPosiciones(device: MTLDevice, geometria: GeometriaPieza,
+                                              paredes: Paredes) -> MTLBuffer {
+        let vertices = zip(geometria.posiciones, paredes.marcaVertice).map { SIMD4<Float>($0, $1) }
+        let buffer = device.makeBuffer(bytes: vertices,
+                                       length: vertices.count * MemoryLayout<SIMD4<Float>>.stride,
                                        options: .storageModeShared)!
         buffer.label = "Pieza: posiciones"
         return buffer
@@ -130,14 +150,22 @@ final class Pieza {
     /// para que se lea): las caras traseras no se esconden. Al girar, parte
     /// de la pieza se ve "por detrás", y eso es información para R6, no
     /// algo que ocultar.
-    func dibujar(encoder: MTLRenderCommandEncoder, viewProjection: simd_float4x4, colorFoto: MTLTexture) {
+    ///
+    /// Cara frontal = antihoraria (`.counterClockwise`), que es como se ven
+    /// los triángulos de la rejilla desde C. Metal por defecto toma la
+    /// horaria; sin este cambio, `[[front_facing]]` diría lo contrario.
+    func dibujar(encoder: MTLRenderCommandEncoder, viewProjection: simd_float4x4,
+                 colorFoto: MTLTexture, interruptores: PiezaUniforms) {
         encoder.pushDebugGroup("Pieza")
         encoder.setCullMode(.none)
+        encoder.setFrontFacing(.counterClockwise)
         encoder.setVertexBuffer(posiciones, offset: 0, index: Self.bufferPosiciones)
         encoder.setVertexBuffer(fijo, offset: 0, index: Self.bufferFijo)
         var vp = viewProjection
         encoder.setVertexBytes(&vp, length: MemoryLayout<simd_float4x4>.stride, index: Self.bufferViewProjection)
         encoder.setFragmentTexture(colorFoto, index: 0)
+        var u = interruptores
+        encoder.setFragmentBytes(&u, length: MemoryLayout<PiezaUniforms>.stride, index: 0)
         encoder.drawIndexedPrimitives(type: .triangleStrip, indexCount: cantidadIndices,
                                       indexType: .uint32, indexBuffer: indices, indexBufferOffset: 0)
         encoder.popDebugGroup()

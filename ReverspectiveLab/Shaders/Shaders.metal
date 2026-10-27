@@ -224,12 +224,23 @@ struct PiezaIn {
     float3 posicion [[attribute(0)]];   // buffer 0: dinámico
     float2 uv       [[attribute(1)]];   // buffer 1: estático
     float  valido   [[attribute(2)]];   // buffer 1: 1 = objeto, 0 = fondo
+    float  pared    [[attribute(3)]];   // buffer 0: 1 = toca una pared
 };
 
 struct PiezaOut {
     float4 position [[position]];
     float2 uv;
     float  valido;      // interpolado: < 1 si el triángulo toca el fondo
+    float  pared;       // interpolado: > 0 cerca de una pared
+};
+
+/// Interruptores de la vista de la pieza (buffer 0 del fragment). El mismo
+/// struct existe en Swift (`PiezaUniforms` en Pieza.swift): si se cambia
+/// uno, se cambia el otro en el mismo commit. `uint` y no `bool` para que
+/// los tamaños coincidan sin sorpresas.
+struct PiezaUniforms {
+    uint resaltarParedes;
+    uint marcarTraseras;
 };
 
 /// Vertex shader de la pieza: solo proyecta. Las posiciones ya están en el
@@ -240,6 +251,7 @@ vertex PiezaOut vs_pieza(PiezaIn in [[stage_in]],
     out.position = viewProjection * float4(in.posicion, 1.0);
     out.uv = in.uv;
     out.valido = in.valido;
+    out.pared = in.pared;
     return out;
 }
 
@@ -254,11 +266,31 @@ vertex PiezaOut vs_pieza(PiezaIn in [[stage_in]],
 /// `valido` vale 1 en los vértices de objetos y 0 en los de fondo; al
 /// interpolarla, cualquier punto de un triángulo que toque el fondo queda
 /// por debajo de 1, y se descarta.
+///
+/// **Paredes (R6):** la marca `pared` es por vértice (1 si el vértice toca
+/// algún triángulo pared). Interpolada, es > 0 en las paredes y también en
+/// una franja de los triángulos vecinos que comparten esos vértices: el
+/// tinte es aproximado en el borde, y para la demo basta.
+///
+/// **Caras traseras:** `[[front_facing]]` dice si el triángulo se ve por
+/// delante desde la cámara actual. La rejilla es antihoraria vista desde C;
+/// cuando el visor se mueve tanto que un triángulo se ve "por detrás", su
+/// orden se invierte y deja de ser cara frontal.
 fragment float4 fs_pieza(PiezaOut in [[stage_in]],
+                         bool deFrente [[front_facing]],
+                         constant PiezaUniforms &u [[buffer(0)]],
                          texture2d<float> color [[texture(0)]]) {
     if (in.valido < 0.999) {
         discard_fragment();
     }
     constexpr sampler lineal(filter::linear, address::clamp_to_edge);
-    return float4(color.sample(lineal, in.uv).rgb, 1.0);
+    float3 rgb = color.sample(lineal, in.uv).rgb;
+
+    if (u.resaltarParedes != 0 && in.pared > 0.0) {
+        rgb = mix(rgb, float3(1.0, 0.0, 0.0), 0.6);     // 60 % rojo
+    }
+    if (u.marcarTraseras != 0 && !deFrente) {
+        rgb = mix(rgb, float3(0.1, 0.3, 1.0), 0.6);     // 60 % azul
+    }
+    return float4(rgb, 1.0);
 }
