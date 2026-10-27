@@ -251,6 +251,21 @@ después de R6.
 
 ---
 
+### R9 — Ajustes antes del tag · **Must** (agregado después de la prueba a mano)
+
+Resultado de la prueba a mano de Santiago: desde C, la pieza se ve **borrosa**
+y la silueta de la esfera tiene un **serrucho muy marcado**. La autoprueba R4.5
+da 0.00/255, pero compara a la resolución de la foto (N×N); en pantalla esa
+foto se amplía 4–6 veces.
+
+- R9.1 **Resolución.** Sube `N` a 1024 (fotos y rejilla). Mide y anota en la bitácora: el tiempo de `tomarFotos`, el tiempo de recalcular la pieza (cambio de `s`) y los FPS orbitando. Si recalcular la pieza tarda más de 150 ms o el visor baja de 60 FPS, usa 768 y anota por qué. Ajusta las autopruebas a N: el píxel central es (N/2, N/2) y la fila de piso es N−1. Revisa que las pruebas de la rejilla sigan pasando con N genérico.
+- R9.2 **Antialiasing en el visor.** MSAA 4× en la pantalla: `MTKView.sampleCount = 4` y `rasterSampleCount = 4` en **todos** los pipelines que dibujan en la vista (escena, pieza, miniaturas). Las pasadas fuera de pantalla (fotos, autopruebas) no cambian. No uses MSAA en la foto de ID: los enteros no se promedian.
+- R9.3 **Definición de pared.** Quita de R6.1 la regla "IDs distintos = pared": pared es solo un salto relativo de `d'` > τ. Así el % de paredes compara estrategias por lo que cambian. Vuelve a medir la tabla de R6 y deja la expectativa "Por objeto < Global" como **resultado a registrar**, no como criterio. Que no se cumpla es un hallazgo: en los bordes de oclusión, "Por objeto" hace saltos más grandes.
+- R9.4 **Que los docs no entren en la app.** Ni `docs/`, ni el README, ni su captura se copian al bundle. Revisa `project.pbxproj` (Build Phases → Copy Bundle Resources, o excepciones de la carpeta sincronizada). Hay un cambio local de Santiago en `project.pbxproj` que agrega `docs/` al target: no lo commitees. Avísale para que lo descarte.
+- R9.5 **Verificación limpia.** `xcodebuild clean build` + `swift test` + autopruebas en ✓, **cada comando por separado y cortando en el primer fallo**. Hasta que eso pase, no se hace ningún merge.
+- R9.6 **No crees el tag.** Deja escrito en la bitácora el comando exacto `git tag -a v0.2.0 -m "…"`. Santiago lo corre después de su prueba a mano.
+- R8 se descarta para v0.2. Guardar en `~/Pictures` pide tocar el sandbox; para las diapositivas basta ⌘⇧4.
+
 ## 5. Fuera de alcance de este release
 
 - Gafas 3D / visionOS / estéreo.

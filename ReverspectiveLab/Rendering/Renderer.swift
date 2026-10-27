@@ -35,7 +35,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     
     let escena: Escena
 
-    /// Texturas de 256×256 donde la cámara C toma las fotos.
+    /// Texturas de N×N donde la cámara C toma las fotos (N en `FotosC`).
     let fotos: FotosC
     let pasadaFotos: PasadaFotos
     /// Copia de las fotos en la CPU, leída una vez después de tomarlas.
@@ -93,6 +93,13 @@ final class Renderer: NSObject, MTKViewDelegate {
         let library = device.makeDefaultLibrary()!
         vista.colorPixelFormat = .bgra8Unorm
         vista.depthStencilPixelFormat = .depth32Float
+        // MSAA 4×: la GPU evalúa la cobertura de cada triángulo en 4 puntos
+        // por píxel y promedia, así que los bordes (la silueta de la pieza,
+        // los contornos de la escena) salen suaves y no en escalera. MTKView
+        // crea sola las texturas de 4 muestras y al final las "resuelve"
+        // (promedia) en el drawable. Todo pipeline que dibuje en esta vista
+        // tiene que declarar las mismas muestras (`rasterSampleCount`).
+        vista.sampleCount = 4
         
         self.escena = try! EscenaPrueba.crear(device: device)
         self.fotos = FotosC(device: device)
@@ -115,6 +122,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         desc
             .colorAttachments[0].pixelFormat = vista.colorPixelFormat
         desc.depthAttachmentPixelFormat = vista.depthStencilPixelFormat
+        desc.rasterSampleCount = vista.sampleCount
         self.pipelineState =
             try! device
             .makeRenderPipelineState(
@@ -148,7 +156,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.pieza = Pieza(device: device, library: library, n: fotos.tamaño,
                            ids: fotosLeidas.id, geometria: geometria, paredes: paredes)
         self.pipelinePieza = pieza.crearPipeline(formatoColor: vista.colorPixelFormat,
-                                                 formatoProfundidad: vista.depthStencilPixelFormat)
+                                                 formatoProfundidad: vista.depthStencilPixelFormat,
+                                                 muestras: vista.sampleCount)
         super.init()
 
         var nombres: [UInt16: String] = [:]

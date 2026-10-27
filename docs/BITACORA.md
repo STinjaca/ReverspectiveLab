@@ -379,6 +379,129 @@ Medido en la escena de prueba (τ = 0.08):
 
 ---
 
+## R9 — Ajustes antes del tag
+
+Vino de la prueba a mano: desde C la pieza se veía **borrosa** y la silueta
+de la esfera tenía **serrucho**. La autoprueba daba 0.00/255 porque compara
+a la resolución de la foto, pero en pantalla esa foto se ampliaba 4–6 veces.
+
+**Qué se hizo**
+
+- **N = 1024** (antes 256) para fotos y rejilla: un millón de vértices. Las
+  autopruebas ya usaban N/2 y N−1; ahora dicen (512, 512) y fila 1023, y
+  siguen en ✓ (pieza desde C: 0.00/255 en 583 513 píxeles). Las pruebas de
+  la rejilla corren con N = 3, 256, 768 y 1024.
+- **Recalcular más rápido** con un millón de vértices: el buffer de
+  posiciones se escribe directo (sin arreglo intermedio), los pivotes por
+  objeto se buscan en un arreglo y no en un diccionario, y los arreglos de
+  la geometría se crean del tamaño final.
+- **MSAA 4×** en el visor: `sampleCount = 4` en la vista y
+  `rasterSampleCount = 4` en los tres pipelines que dibujan en ella
+  (escena, pieza, miniaturas). Las pasadas fuera de pantalla (fotos,
+  autopruebas) siguen con una muestra; la foto de ID nunca se promedia.
+- **Pared = solo salto de d'** (> τ). Ya no cuenta "IDs distintos".
+- **Los docs no entran en la app.** El `project.pbxproj` commiteado solo
+  sincroniza la carpeta `ReverspectiveLab/`; `docs/` y el README quedan
+  fuera del bundle (verificado en la build limpia). El cambio local que
+  agrega `docs/` al target **no se commiteó**: hay que descartarlo (ver
+  abajo).
+
+**Mediciones** (Mac con chip Apple, ventana de 800×786 px en una pantalla
+de 180 Hz, `preferredFramesPerSecond = 60`, MSAA 4×, N = 1024):
+
+| Medida | Debug (`-Onone`) | Release |
+|---|---|---|
+| `tomarFotos` (GPU + copia a la CPU) | 6–16 ms | 11 ms |
+| Recalcular la pieza (cambio de `s`) | ~370 ms (antes de optimizar: ~490) | 11 ms mediana, 23 ms máx. |
+| FPS orbitando | 59.0–59.3 | 58.4–59.2 |
+| Frames con intervalo > 25 ms (de 600) | 1 | 1 |
+| GPU por frame orbitando | 5.9 ms mediana, 7.7 ms p95 | 5.6 ms mediana, 7.5 ms p95 |
+
+- Los ~59 FPS son el ritmo de 60 FPS sobre una pantalla de 180 Hz (un
+  frame cada 3 refrescos), no caídas: en 600 frames solo uno tardó más de
+  25 ms (28 ms). La GPU usa unos 6 de los 16.7 ms disponibles. Antes de
+  MSAA eran 3.5 ms.
+- En Debug, el desglose del recálculo es geometría ~160 ms, paredes
+  ~145 ms y buffer ~70 ms. Con N = 768, Debug tardaba 220 ms: bajar la
+  resolución **no** cumplía tampoco el límite en Debug (ver Desviaciones).
+
+**Paredes con la nueva definición** (N = 1024, τ = 0.08; pivotes D = 4.211,
+esfera 4.250, cubo 5.831, piso 3.743; 1 167 132 triángulos válidos, de ellos
+1 900 en bordes entre objetos):
+
+| Estrategia | s | s_orden | % paredes | paredes | en bordes entre objetos | dentro de un objeto | % recortados |
+|---|---|---|---|---|---|---|---|
+| Global | 1 | (= s) | 0.61 % | 7 069 | 1 078 de 1 900 | 5 991 | 1.23 % |
+| Global | 0.5 | (= s) | 0.07 % | 850 | 850 de 1 900 | 0 | 0.00 % |
+| Por objeto | 1 | (−1) | 0.65 % | 7 603 | 1 900 de 1 900 | 5 703 | 2.56 % |
+| Por objeto | 0.5 | (−1) | 0.16 % | 1 900 | 1 900 de 1 900 | 0 | 0.00 % |
+| Híbrida | 1 | 0.5 | 0.67 % | 7 841 | 1 900 de 1 900 | 5 941 | 1.52 % |
+| Híbrida | 0.5 | 0 | 0.15 % | 1 798 | 1 798 de 1 900 | 0 | 0.00 % |
+
+**Resultado registrado:** "Por objeto" **no** da menos paredes que "Global";
+da más (0.65 % contra 0.61 % con s = 1; 0.16 % contra 0.07 % con s = 0.5).
+La diferencia está en los bordes de oclusión: con "Por objeto" todos los
+bordes entre objetos son pared (1 900 de 1 900), con "Global" solo 1 078 (o
+850 con s = 0.5). La global solo invierte el signo de cada diferencia
+(`Δd' = −s·Δd`); "Por objeto" lleva cada objeto a su propio pivote, y en la
+silueta de la esfera el piso de atrás termina mucho más cerca que el borde
+de la esfera. Es un hallazgo, no un error.
+
+Ojo: el % de paredes depende de N. Con más resolución hay muchos más
+triángulos, pero las paredes crecen solo con el largo de los bordes. Solo
+se comparan porcentajes medidos con el mismo N (la tabla de R6 era con 256).
+
+**Conceptos nuevos**
+
+- **MSAA (multisample antialiasing).** Cada píxel guarda 4 muestras de
+  cobertura y profundidad; el fragment shader corre una vez por píxel, pero
+  el borde de un triángulo cubre solo algunas muestras. Al final se
+  promedian (*resolve*) y el borde sale suave. Todo pipeline que dibuja en
+  un destino con 4 muestras tiene que declarar `rasterSampleCount = 4`; si
+  no coinciden, Metal da error de validación.
+- **`MTLBuffer.contents()` + `bindMemory`.** Con un buffer `.shared` la CPU
+  puede escribir directo en la memoria que lee la GPU. Evita armar un
+  arreglo de Swift de un millón de elementos solo para copiarlo.
+- **Debug vs Release.** Debug compila sin optimizar (`-Onone`) para poder
+  depurar paso a paso. Las operaciones con `SIMD3` y los arreglos son
+  mucho más lentos así: el mismo recálculo tarda ~370 ms en Debug y ~11 ms
+  en Release. Para medir rendimiento hay que mirar Release.
+- **Recursos de una carpeta sincronizada.** Xcode copia al bundle todo lo
+  que no es código dentro de una carpeta sincronizada del target (un `.md`,
+  un `.png`, hasta un `.orig` olvidado). Por eso `docs/` no debe estar
+  sincronizada en el target de la app.
+
+**Dónde mirar**
+
+- `Rendering/FotosC.swift` → `tamaño` por defecto y por qué 1024.
+- `Rendering/Renderer.swift` → `vista.sampleCount`, `rasterSampleCount`.
+- `Rendering/Pieza.swift` → `crearPipeline(…muestras:)`, `crearBufferPosiciones`.
+- `Core/Inversion.swift` → `Pivotes.pivote(de:)`.
+- `Core/Paredes.swift` → la definición nueva.
+
+**Para Santiago**
+
+- **Descartar el cambio local de `project.pbxproj`** (agrega `docs/` al
+  target y mete los `.md` y la captura en la app):
+  `git restore ReverspectiveLab.xcodeproj/project.pbxproj`
+- **Crear el tag** después de la prueba a mano, sobre `main`:
+
+  ```sh
+  git switch main
+  git tag -a v0.2.0 -m "ReverspectiveLab v0.2.0
+
+  Hitos: R1 fotos una vez + autoprueba, R2 miniaturas, R3 núcleo probado,
+  R4 pieza invertida, R5 interfaz, R6 paredes, R7 estrategia híbrida,
+  R9 ajustes (N = 1024, MSAA 4×, pared = solo salto de d', docs fuera
+  del bundle). R8 descartado.
+
+  Desviaciones: R4.5 compara solo el interior de la imagen; Por objeto
+  no da menos paredes que Global (resultado registrado); en Debug
+  recalcular la pieza tarda ~370 ms (límite de 150 ms medido en Release)."
+  ```
+
+---
+
 ## Desviaciones
 
 - **R4.5 compara solo el interior de la imagen.** Contando todos los píxeles
@@ -403,13 +526,25 @@ Medido en la escena de prueba (τ = 0.08):
   Queda para que Santiago decida: cambiar la definición de pared, cambiar
   la expectativa o usar la híbrida (R7) para estudiarlo. No se forzó el
   resultado.
+  **Resuelto en R9.3:** la regla de IDs se quitó y la expectativa pasó a
+  ser un resultado a registrar. Con la definición nueva sigue sin cumplirse
+  (tabla en la entrada de R9): es un hallazgo sobre los bordes de oclusión.
+- **R9.1, límite de 150 ms: se cumple en Release, no en Debug.** En Release
+  recalcular la pieza tarda 11 ms (mediana) con N = 1024. En Debug (sin
+  optimizar) tarda ~370 ms, y con N = 768 seguía en 220 ms: bajar a 768 no
+  arreglaba Debug y sí empeoraba la imagen. Se quedó N = 1024 y el límite
+  se evaluó en Release. En Debug el slider `s` responde con ~0.4 s de
+  retraso; orbitar no se afecta (59 FPS en los dos).
 
 ---
 
 ## Cómo correr la demo
 
 1. Abrir `ReverspectiveLab.xcodeproj` y correr en Debug (⌘R). Revisar que
-   el panel diga **Autoprueba ✓ 6/6**. Se ve la escena original con las
+   el panel diga **Autoprueba ✓ 6/6**. (En Debug el slider `s` tarda ~0.4 s
+   en responder. Para que vaya fluido en clase, después de ver la
+   autoprueba se puede correr en Release: Product → Scheme → Edit Scheme →
+   Run → Build Configuration → Release. En Release la autoprueba no corre.) Se ve la escena original con las
    tres fotos en miniatura: color, distancia en grises e ID en colores.
 2. En **Vista**, elegir **Pieza invertida** y pulsar **Ir a C**. La pieza se
    ve idéntica a la escena, aunque su relieve está al revés.
@@ -421,5 +556,5 @@ Medido en la escena de prueba (τ = 0.08):
    % de paredes.
 5. Mover el slider **s** (0 = plano, 1 = inversión completa) y cambiar la
    **estrategia** (Global / Por objeto / Híbrida) para ver cómo cambian las
-   paredes. Ojo: en esta escena Por objeto no da menos paredes que Global
-   (ver Desviaciones).
+   paredes. En esta escena Por objeto da **más** paredes que Global, por
+   los bordes entre objetos (resultado registrado en R9).

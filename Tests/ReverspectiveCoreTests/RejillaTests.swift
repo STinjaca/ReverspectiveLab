@@ -10,14 +10,24 @@ func contarTriangulos(_ indices: [UInt32]) -> Int {
     indices.split(separator: Rejilla.reinicio).map { $0.count - 2 }.reduce(0, +)
 }
 
-@Test func rejillaN256() {
-    let n = 256
+/// Las cuentas de la rejilla para cualquier N: 2·(N−1)·N índices de
+/// vértice, N−2 reinicios, ningún índice fuera de rango y 2·(N−1)²
+/// triángulos. Con N = 256 eran 130 560 índices y 130 050 triángulos.
+@Test(arguments: [3, 256, 768, 1024])
+func rejillaCuentas(n: Int) {
     let indices = Rejilla.indices(n: n)
     let reinicios = indices.filter { $0 == Rejilla.reinicio }.count
-    #expect(indices.count - reinicios == 130_560)          // 2·(N−1)·N
+    #expect(indices.count - reinicios == 2 * (n - 1) * n)
     #expect(reinicios == n - 2)
     #expect(indices.allSatisfy { $0 == Rejilla.reinicio || $0 < UInt32(n * n) })
-    #expect(contarTriangulos(indices) == 130_050)           // 2·(N−1)²
+    #expect(contarTriangulos(indices) == 2 * (n - 1) * (n - 1))
+}
+
+/// Los números exactos de N = 256 (de los requisitos), escritos a mano.
+@Test func rejillaN256() {
+    let indices = Rejilla.indices(n: 256)
+    #expect(indices.filter { $0 != Rejilla.reinicio }.count == 130_560)
+    #expect(contarTriangulos(indices) == 130_050)
 }
 
 /// N = 3, escrito a mano:

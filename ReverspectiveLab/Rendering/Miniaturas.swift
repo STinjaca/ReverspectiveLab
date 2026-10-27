@@ -27,8 +27,9 @@ final class Miniaturas {
     private let depthState: MTLDepthStencilState
 
     /// - Parameters:
-    ///   - vista: de ella salen los formatos de color y profundidad, que
-    ///     tienen que coincidir con los del encoder del visor donde se dibuja.
+    ///   - vista: de ella salen los formatos de color y profundidad y las
+    ///     muestras por píxel, que tienen que coincidir con los del encoder
+    ///     del visor donde se dibuja.
     init(device: MTLDevice, library: MTLLibrary, vista: MTKView) {
         let desc = MTLRenderPipelineDescriptor()
         desc.label = "Miniaturas"
@@ -37,6 +38,7 @@ final class Miniaturas {
         // Sin vertexDescriptor: el vertex shader no lee ningún buffer.
         desc.colorAttachments[0].pixelFormat = vista.colorPixelFormat
         desc.depthAttachmentPixelFormat = vista.depthStencilPixelFormat
+        desc.rasterSampleCount = vista.sampleCount     // MSAA, como la vista
         self.pipelineState = try! device.makeRenderPipelineState(descriptor: desc)
 
         // Las miniaturas van encima de todo: ni se comparan con la

@@ -35,12 +35,24 @@ import Testing
     #expect(p.triangulosPared == 0)
 }
 
-/// Un cambio de ID es pared aunque la distancia sea la misma.
-@Test func bordeEntreObjetos() {
+/// Un cambio de ID sin salto de distancia no es pared (R9.3).
+@Test func bordeEntreObjetosSinSalto() {
     let ids: [UInt16] = [1, 1, 2,
                          1, 1, 2,
                          1, 1, 2]
     let p = Paredes.calcular(distancias: Array(repeating: 4, count: 9), ids: ids, n: 3, umbral: 0.08)
+    #expect(p.triangulosPared == 0)
+}
+
+/// Un cambio de ID con salto sí es pared, por el salto.
+@Test func bordeEntreObjetosConSalto() {
+    let ids: [UInt16] = [1, 1, 2,
+                         1, 1, 2,
+                         1, 1, 2]
+    let d: [Float] = [4, 4, 5,
+                      4, 4, 5,
+                      4, 4, 5]
+    let p = Paredes.calcular(distancias: d, ids: ids, n: 3, umbral: 0.08)
     #expect(p.triangulosPared == 4)
 }
 

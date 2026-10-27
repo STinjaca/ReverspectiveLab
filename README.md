@@ -9,13 +9,14 @@ Proyecto final de Computación Visual Interactiva (Uniandes). La pregunta de
 investigación compara el ángulo máximo de visión θ_max que predice la
 geometría con el ángulo al que la gente reporta que la ilusión se rompe.
 
-![La pieza invertida con las paredes resaltadas en rojo](docs/captura-v0.2.png)
+![La pieza invertida vista desde C, idéntica a la escena original](docs/captura-v0.2.png)
 
 ## Qué hace (v0.2)
 
 1. Toma tres fotos de la escena desde una cámara fija C: color, distancia
    radial e ID de objeto (miniaturas abajo a la izquierda).
-2. Convierte las fotos en una rejilla de triángulos, un vértice por píxel.
+2. Convierte las fotos (1024×1024) en una rejilla de triángulos, un
+   vértice por píxel.
 3. Mueve cada vértice sobre su rayo según una estrategia de inversión:
    **Global**, **Por objeto** o **Híbrida**, con un factor `s`.
 4. Muestra la pieza con la foto de color pegada. Desde C se ve idéntica a

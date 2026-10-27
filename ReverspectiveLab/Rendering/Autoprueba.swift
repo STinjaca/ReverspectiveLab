@@ -154,8 +154,10 @@ enum Autoprueba {
         let commandBuffer = commandQueue.makeCommandBuffer()!
         commandBuffer.label = "Autoprueba: pieza desde C"
         let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pasada)!
+        // Sin MSAA, como la foto: se compara píxel a píxel.
         encoder.setRenderPipelineState(pieza.crearPipeline(formatoColor: destino.pixelFormat,
-                                                           formatoProfundidad: fotos.profundidad.pixelFormat))
+                                                           formatoProfundidad: fotos.profundidad.pixelFormat,
+                                                           muestras: 1))
         encoder.setDepthStencilState(device.makeDepthStencilState(descriptor: depthDesc)!)
         let viewProjection = camaraC.matrizProyeccion(aspect: 1) * camaraC.matrizVista()
         pieza.dibujar(encoder: encoder, viewProjection: viewProjection, colorFoto: fotos.color,

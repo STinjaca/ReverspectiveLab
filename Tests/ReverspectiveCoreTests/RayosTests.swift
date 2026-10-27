@@ -7,7 +7,7 @@ import simd
 /// La cámara C de la escena de prueba.
 let camaraC = Camara(posicion: [0, 0, 5], objetivo: [0, 0, 0], fovGrados: 45)
 /// Lado de las fotos (N).
-let ladoFotos = 256
+let ladoFotos = 1024
 
 /// El rayo del centro de la imagen apunta al objetivo de la cámara.
 @Test func rayoDelCentroApuntaAlObjetivo() {

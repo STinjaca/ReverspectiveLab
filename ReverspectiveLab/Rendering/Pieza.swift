@@ -113,23 +113,37 @@ final class Pieza {
     }
 
     /// Junta posición (xyz) y marca de pared (w) de cada vértice en un buffer.
+    ///
+    /// Escribe directo en la memoria del buffer en vez de armar primero un
+    /// arreglo de Swift y copiarlo: con N = 1024 son un millón de vértices,
+    /// y el arreglo intermedio costaba más que todo el resto del recálculo
+    /// en Debug. Se puede porque el buffer es `.shared`: `contents()` es un
+    /// puntero a la memoria que también lee la GPU.
     private static func crearBufferPosiciones(device: MTLDevice, geometria: GeometriaPieza,
                                               paredes: Paredes) -> MTLBuffer {
-        let vertices = zip(geometria.posiciones, paredes.marcaVertice).map { SIMD4<Float>($0, $1) }
-        let buffer = device.makeBuffer(bytes: vertices,
-                                       length: vertices.count * MemoryLayout<SIMD4<Float>>.stride,
+        let cantidad = geometria.posiciones.count
+        let buffer = device.makeBuffer(length: cantidad * MemoryLayout<SIMD4<Float>>.stride,
                                        options: .storageModeShared)!
         buffer.label = "Pieza: posiciones"
+        // `bindMemory` dice "trata estos bytes como un arreglo de SIMD4<Float>".
+        let vertices = buffer.contents().bindMemory(to: SIMD4<Float>.self, capacity: cantidad)
+        for k in 0..<cantidad {
+            let p = geometria.posiciones[k]
+            vertices[k] = SIMD4<Float>(p.x, p.y, p.z, paredes.marcaVertice[k])
+        }
         return buffer
     }
 
     /// Un pipeline para dibujar la pieza en un destino con estos formatos.
     ///
-    /// Se necesitan dos: uno para la pantalla (bgra8Unorm) y otro para la
-    /// autoprueba, que dibuja en una textura como la foto de color
-    /// (rgba8Unorm). Los shaders y los buffers son los mismos.
+    /// Se necesitan dos: uno para la pantalla (bgra8Unorm, con MSAA) y otro
+    /// para la autoprueba, que dibuja en una textura como la foto de color
+    /// (rgba8Unorm, sin MSAA). Los shaders y los buffers son los mismos.
     ///
-    func crearPipeline(formatoColor: MTLPixelFormat, formatoProfundidad: MTLPixelFormat) -> MTLRenderPipelineState {
+    /// - Parameter muestras: muestras por píxel del destino (`sampleCount`).
+    ///   El pipeline tiene que coincidir con el destino donde dibuja.
+    func crearPipeline(formatoColor: MTLPixelFormat, formatoProfundidad: MTLPixelFormat,
+                       muestras: Int) -> MTLRenderPipelineState {
         let desc = MTLRenderPipelineDescriptor()
         desc.label = "Pieza"
         desc.vertexFunction = library.makeFunction(name: "vs_pieza")
@@ -137,6 +151,7 @@ final class Pieza {
         desc.vertexDescriptor = Self.descriptorVertices
         desc.colorAttachments[0].pixelFormat = formatoColor
         desc.depthAttachmentPixelFormat = formatoProfundidad
+        desc.rasterSampleCount = muestras
         return try! device.makeRenderPipelineState(descriptor: desc)
     }
 

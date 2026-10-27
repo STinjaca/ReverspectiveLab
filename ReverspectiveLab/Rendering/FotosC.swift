@@ -17,7 +17,11 @@ struct FotosC {
     let id: MTLTexture
     let profundidad: MTLTexture
 
-    init(device: MTLDevice, tamaño: Int = 256) {
+    /// - Parameter tamaño: N, el lado de las fotos en píxeles. Es también
+    ///   la resolución de la pieza (un vértice por píxel). Con 256 la foto
+    ///   se ampliaba 4–6 veces en pantalla y la pieza se veía borrosa y con
+    ///   la silueta en serrucho; 1024 se acerca a la resolución del visor.
+    init(device: MTLDevice, tamaño: Int = 1024) {
         self.tamaño = tamaño
         self.color = Self.crearTextura(device: device, formato: .rgba8Unorm, tamaño: tamaño,
                                        usage: [.renderTarget, .shaderRead], storage: .shared,

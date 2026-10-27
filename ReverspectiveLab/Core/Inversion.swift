@@ -22,21 +22,37 @@ struct Pivotes {
     let global: Float
     /// d_b(k): mediana de las distancias de los píxeles de cada objeto.
     let porObjeto: [UInt16: Float]
+    /// Los mismos d_b en un arreglo indexado por ID (el global donde no hay
+    /// objeto). `invertir` lo consulta una vez por píxel —un millón de veces
+    /// con N = 1024— y leer un arreglo es mucho más barato que buscar en
+    /// un diccionario.
+    private let pivotePorID: [Float]
 
     /// Calcula D y un d_b por cada ID que aparezca en la foto (sin el 0).
     init(distancias: [Float], ids: [UInt16]) {
-        self.global = mediana(distancias: distancias, ids: ids) ?? 0
+        let global = mediana(distancias: distancias, ids: ids) ?? 0
         var porObjeto: [UInt16: Float] = [:]
         for id in Set(ids) where id != 0 {
             porObjeto[id] = mediana(distancias: distancias, ids: ids, soloID: id)
         }
-        self.porObjeto = porObjeto
+        self.init(global: global, porObjeto: porObjeto)
     }
 
-    /// Para pruebas: pivotes dados a mano.
+    /// Pivotes dados a mano (lo usan las pruebas, y el otro `init`).
     init(global: Float, porObjeto: [UInt16: Float]) {
         self.global = global
         self.porObjeto = porObjeto
+        var pivotePorID = [Float](repeating: global, count: Int(porObjeto.keys.max() ?? 0) + 1)
+        for (id, pivote) in porObjeto {
+            pivotePorID[Int(id)] = pivote
+        }
+        self.pivotePorID = pivotePorID
+    }
+
+    /// d_b del objeto `id`. Un ID sin pivote no debería pasar; se usa el
+    /// global para no fallar.
+    func pivote(de id: UInt16) -> Float {
+        Int(id) < pivotePorID.count ? pivotePorID[Int(id)] : global
     }
 
     /// Distancia mínima permitida para d': el 5 % del pivote global. Evita
@@ -92,8 +108,7 @@ func distanciaInvertida(d: Float, pivoteGlobal D: Float, pivoteObjeto db: Float,
 /// - Returns: la distancia nueva y si hubo que recortarla.
 func invertir(d: Float, id: UInt16, parametros: ParametrosInversion,
               pivotes: Pivotes) -> (d: Float, recortado: Bool) {
-    // Un ID sin pivote no debería pasar; se usa el global para no fallar.
-    let db = pivotes.porObjeto[id] ?? pivotes.global
+    let db = pivotes.pivote(de: id)
     let nueva = distanciaInvertida(d: d, pivoteGlobal: pivotes.global, pivoteObjeto: db,
                                    sOrden: parametros.sOrden, sRelieve: parametros.s)
     if nueva < pivotes.dMinima {
