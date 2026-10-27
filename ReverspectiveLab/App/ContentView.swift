@@ -6,9 +6,14 @@ struct ContentView: View {
     @State private var estado = EstadoVisor()
 
     var body: some View {
-        MetalView(estado: estado)
-            .frame(minWidth: 800, minHeight: 600)
-            .overlay(alignment: .bottomLeading) { etiquetasMiniaturas }
+        HStack(spacing: 0) {
+            MetalView(estado: estado)
+                .frame(minWidth: 800, minHeight: 600)
+                .overlay(alignment: .bottomLeading) { etiquetasMiniaturas }
+            Divider()
+            PanelControl(estado: estado)
+                .frame(width: 280)
+        }
     }
 
     /// Los nombres de las miniaturas, encima de cada una. Las miniaturas las
