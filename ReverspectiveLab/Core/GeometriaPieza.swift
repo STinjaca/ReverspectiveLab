@@ -38,21 +38,20 @@ struct GeometriaPieza {
     static func calcular(rayos: [SIMD3<Float>], origen: SIMD3<Float>,
                          distancias: [Float], ids: [UInt16],
                          parametros: ParametrosInversion, pivotes: Pivotes) -> GeometriaPieza {
-        var posiciones: [SIMD3<Float>] = []
-        var nuevas: [Float] = []
-        posiciones.reserveCapacity(rayos.count)
-        nuevas.reserveCapacity(rayos.count)
+        // Arreglos del tamaño final desde el principio: con un millón de
+        // píxeles, ir agregando de a uno (`append`) es notablemente más lento.
+        var posiciones = [SIMD3<Float>](repeating: .zero, count: rayos.count)
+        var nuevas = [Float](repeating: 0, count: rayos.count)
         var recortados = 0, validos = 0
 
         for k in rayos.indices {
             guard ids[k] != 0 else {
-                posiciones.append(origen + rayos[k] * pivotes.global)
-                nuevas.append(0)
+                posiciones[k] = origen + rayos[k] * pivotes.global
                 continue
             }
             let r = invertir(d: distancias[k], id: ids[k], parametros: parametros, pivotes: pivotes)
-            posiciones.append(origen + rayos[k] * r.d)
-            nuevas.append(r.d)
+            posiciones[k] = origen + rayos[k] * r.d
+            nuevas[k] = r.d
             validos += 1
             if r.recortado { recortados += 1 }
         }
