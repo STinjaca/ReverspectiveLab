@@ -22,11 +22,20 @@ struct PanelControl: View {
 
             Section("Inversión") {
                 Picker("Estrategia", selection: $estado.parametros.estrategia) {
-                    Text(Estrategia.global.rawValue).tag(Estrategia.global)
-                    Text(Estrategia.porObjeto.rawValue).tag(Estrategia.porObjeto)
+                    ForEach(Estrategia.allCases, id: \.self) { estrategia in
+                        Text(estrategia.rawValue).tag(estrategia)
+                    }
                 }
                 LabeledContent("s = \(estado.parametros.s, format: .number.precision(.fractionLength(2)))") {
                     Slider(value: $estado.parametros.s, in: 0...1)
+                }
+                .help("Cuánto se invierte el relieve: 0 = plano, 1 = inversión completa")
+                // Solo la híbrida deja elegir s_orden; las otras lo fijan solas.
+                if estado.parametros.estrategia == .hibrida {
+                    LabeledContent("s_orden = \(estado.parametros.sOrdenHibrida, format: .number.precision(.fractionLength(2)))") {
+                        Slider(value: $estado.parametros.sOrdenHibrida, in: -1...1)
+                    }
+                    .help("Cuánto se invierte el orden entre objetos: −1 = como Por objeto, igual a s = como Global")
                 }
             }
 
@@ -67,13 +76,13 @@ struct PanelControl: View {
     }
 
     /// Los pivotes que usa la estrategia elegida: D en la global; un d_b por
-    /// objeto en la de por objeto.
+    /// objeto en la de por objeto; los dos en la híbrida.
     @ViewBuilder private var pivotes: some View {
         if let pivotes = estado.pivotes {
-            switch estado.parametros.estrategia {
-            case .global:
+            if estado.parametros.estrategia != .porObjeto {
                 LabeledContent("Pivote D") { distancia(pivotes.global) }
-            case .porObjeto, .hibrida:
+            }
+            if estado.parametros.estrategia != .global {
                 ForEach(pivotes.porObjeto.keys.sorted(), id: \.self) { id in
                     LabeledContent("Pivote \(estado.nombresObjetos[id] ?? "ID \(id)")") {
                         distancia(pivotes.porObjeto[id]!)
