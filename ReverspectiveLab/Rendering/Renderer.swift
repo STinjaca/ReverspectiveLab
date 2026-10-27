@@ -162,6 +162,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         chequeos.append(Autoprueba.revisarPiezaDesdeC(device: device, commandQueue: commandQueue,
                                                       pieza: pieza, fotos: fotos, leidas: fotosLeidas,
                                                       camaraC: escena.camaraC))
+        chequeos.append(Autoprueba.revisarCarasDesdeC(device: device, commandQueue: commandQueue,
+                                                      pieza: pieza, fotos: fotos, camaraC: escena.camaraC))
         Autoprueba.imprimir(chequeos)
         estado.autoprueba = chequeos
         #endif
