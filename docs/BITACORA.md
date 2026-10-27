@@ -111,6 +111,61 @@ mirarlos. Las desviaciones respecto a `REQUISITOS-v0.2.md` van al final.
 
 ---
 
+## R3 — Núcleo puro y probado
+
+**Qué se hizo**
+
+- Carpeta `ReverspectiveLab/Core/` con toda la matemática del pipeline, sin
+  Metal: `Camara` y `MatrixMath` (movidos aquí), rayos, mediana, inversión,
+  rejilla y posiciones de la pieza.
+- `Package.swift` en la raíz: con `swift test` se corren 20 pruebas desde la
+  terminal, sin abrir Xcode ni la app. El paquete apunta a la misma carpeta
+  `Core/` que compila la app (carpeta sincronizada), así que no hay copias.
+  No chocó con el `.xcodeproj`.
+- **R7.1 adelantado:** la inversión ya usa la fórmula general de las tres
+  estrategias. "Global" y "Por objeto" son casos con nombre, y hay una prueba
+  que confirma que reproducen las fórmulas de R3.5.
+
+**Conceptos nuevos**
+
+- **Swift Package Manager.** `Package.swift` describe *targets*: una
+  librería (`ReverspectiveCore`) y un target de pruebas. `swift test`
+  compila los dos y corre las pruebas. `.build/` es su carpeta de trabajo y
+  está en `.gitignore`.
+- **Swift Testing (`import Testing`).** Una prueba es una función con
+  `@Test`; `#expect(condición)` la revisa y, si falla, muestra los valores.
+  `@Test(arguments: [...])` corre la misma prueba con varios casos (las 4
+  esquinas, varias estrategias…).
+- **`@testable import`.** Deja que las pruebas usen lo que no es `public`.
+  Así el núcleo no necesita marcar todo como público.
+- **`extension Camara`.** Agrega métodos a un tipo desde otro archivo. Los
+  rayos viven en `Rayos.swift`, pero se usan como `camaraC.rayo(i:j:n:)`.
+- **Tiras de triángulos con reinicio.** En `.triangleStrip`, cada índice
+  nuevo forma un triángulo con los dos anteriores. Una fila de N columnas
+  sale con 2N índices en vez de 6(N−1). `0xFFFFFFFF` corta la tira, y Metal
+  invierte solo los triángulos impares para que todos queden con la misma
+  orientación.
+
+**Dónde mirar**
+
+- `Core/Rayos.swift` → del píxel (i, j) al rayo en el mundo, paso a paso.
+- `Core/Mediana.swift` → por qué mediana y no promedio.
+- `Core/Inversion.swift` → `Estrategia`, `Pivotes`, la fórmula general y el recorte.
+- `Core/Rejilla.swift` → el orden de los índices y la orientación.
+- `Core/GeometriaPieza.swift` → `p' = C + r·d'`.
+- `Tests/ReverspectiveCoreTests/` → una prueba por propiedad; la de ida y
+  vuelta (`RayosTests`) es la que protege contra imágenes de cabeza.
+
+**Decisiones**
+
+- `Estrategia` ya tiene el caso `.hibrida`, pero la interfaz lo va a mostrar
+  hasta R7.
+- Los vértices de fondo quedan sobre su rayo a la distancia del pivote
+  global (no en el origen ni en C): no se ven, pero no producen números
+  raros si algún día se dibujan por error.
+
+---
+
 ## Desviaciones
 
 _(ninguna por ahora)_
