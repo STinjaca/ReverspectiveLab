@@ -136,11 +136,14 @@ final class Pieza {
 
     /// Un pipeline para dibujar la pieza en un destino con estos formatos.
     ///
-    /// Se necesitan dos: uno para la pantalla (bgra8Unorm) y otro para la
-    /// autoprueba, que dibuja en una textura como la foto de color
-    /// (rgba8Unorm). Los shaders y los buffers son los mismos.
+    /// Se necesitan dos: uno para la pantalla (bgra8Unorm, con MSAA) y otro
+    /// para la autoprueba, que dibuja en una textura como la foto de color
+    /// (rgba8Unorm, sin MSAA). Los shaders y los buffers son los mismos.
     ///
-    func crearPipeline(formatoColor: MTLPixelFormat, formatoProfundidad: MTLPixelFormat) -> MTLRenderPipelineState {
+    /// - Parameter muestras: muestras por píxel del destino (`sampleCount`).
+    ///   El pipeline tiene que coincidir con el destino donde dibuja.
+    func crearPipeline(formatoColor: MTLPixelFormat, formatoProfundidad: MTLPixelFormat,
+                       muestras: Int) -> MTLRenderPipelineState {
         let desc = MTLRenderPipelineDescriptor()
         desc.label = "Pieza"
         desc.vertexFunction = library.makeFunction(name: "vs_pieza")
@@ -148,6 +151,7 @@ final class Pieza {
         desc.vertexDescriptor = Self.descriptorVertices
         desc.colorAttachments[0].pixelFormat = formatoColor
         desc.depthAttachmentPixelFormat = formatoProfundidad
+        desc.rasterSampleCount = muestras
         return try! device.makeRenderPipelineState(descriptor: desc)
     }
 
