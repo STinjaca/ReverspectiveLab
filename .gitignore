@@ -6,3 +6,7 @@ xcuserdata/
 DerivedData/
 build/
 *.xcuserstate
+
+# Swift Package Manager (swift test)
+.build/
+.swiftpm/
