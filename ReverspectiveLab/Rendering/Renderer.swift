@@ -38,6 +38,20 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// Texturas de 256×256 donde la cámara C toma las fotos.
     let fotos: FotosC
     let pasadaFotos: PasadaFotos
+    /// Copia de las fotos en la CPU, leída una vez después de tomarlas.
+    let fotosLeidas: FotosLeidas
+
+    /// Resultado de la autoprueba de arranque, para mostrarlo en la
+    /// interfaz. Vacío en Release, donde la autoprueba no corre.
+    private(set) var autoprueba: [Chequeo] = []
+
+    #if DEBUG
+    /// Volver a tomar las fotos en cada frame. La captura de GPU de Xcode
+    /// solo muestra lo que pasa dentro de un frame: con esto en `true` la
+    /// pasada de las fotos aparece en la captura. Las fotos salen iguales,
+    /// porque la escena y C no cambian.
+    var fotosEnCadaFrame = false
+    #endif
 
     /// Cámara para mirar la escena en pantalla. Es independiente de
     /// `escena.camaraC`, que se queda fija para tomar las fotos.
@@ -96,13 +110,37 @@ final class Renderer: NSObject, MTKViewDelegate {
             .makeDepthStencilState(
                 descriptor: depthDesc
             )!
+
+        self.fotosLeidas = Self.tomarFotos(commandQueue: commandQueue, pasada: pasadaFotos,
+                                           escena: escena, fotos: fotos)
         super.init()
 
-        // Verificación temporal: las cuatro fotos existen con su tamaño y formato.
-        for textura in [fotos.color, fotos.distancia, fotos.id, fotos.profundidad] {
-            let nombre = (textura.label ?? "?").padding(toLength: 18, withPad: " ", startingAt: 0)
-            print("\(nombre)\(textura.width)×\(textura.height)  \(textura.pixelFormat)")
+        #if DEBUG
+        autoprueba = Autoprueba.revisarFotos(fotosLeidas)
+        Autoprueba.imprimir(autoprueba)
+        #endif
+    }
+
+    /// Toma las fotos desde C una sola vez, antes del primer frame.
+    ///
+    /// La escena y C no cambian, así que repetirlas en cada frame sería
+    /// trabajo perdido. Usa un command buffer propio y espera a que la GPU
+    /// termine (`waitUntilCompleted`): así, al volver, las texturas ya tienen
+    /// los datos y la CPU las puede leer. Esperar bloquea el hilo, pero pasa
+    /// una vez al arrancar y la pasada es pequeña.
+    ///
+    /// Es `static` para poder llamarla dentro de `init` antes de
+    /// `super.init()`, cuando todavía no se puede usar `self`.
+    private static func tomarFotos(commandQueue: MTLCommandQueue, pasada: PasadaFotos,
+                                   escena: Escena, fotos: FotosC) -> FotosLeidas {
+        guard let commandBuffer = commandQueue.makeCommandBuffer() else {
+            fatalError("No se pudo crear el command buffer de las fotos")
         }
+        commandBuffer.label = "Fotos C (arranque)"
+        pasada.tomar(escena: escena, fotos: fotos, commandBuffer: commandBuffer)
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        return fotos.leer()
     }
 
     func mtkView(
@@ -124,10 +162,14 @@ final class Renderer: NSObject, MTKViewDelegate {
             return
         }
 
-        // Primero las fotos desde C. Por ahora en cada frame: la captura de
-        // GPU solo muestra lo que pasa dentro de un frame. Un command buffer
-        // admite un encoder abierto a la vez, así que el del visor se abre después.
-        pasadaFotos.tomar(escena: escena, fotos: fotos, commandBuffer: commandBuffer)
+        #if DEBUG
+        // Solo para verlas en la captura de GPU (ver `fotosEnCadaFrame`).
+        // Un command buffer admite un encoder abierto a la vez, así que el
+        // del visor se abre después.
+        if fotosEnCadaFrame {
+            pasadaFotos.tomar(escena: escena, fotos: fotos, commandBuffer: commandBuffer)
+        }
+        #endif
 
         guard let encoder = commandBuffer.makeRenderCommandEncoder(
             descriptor: descriptor
