@@ -284,6 +284,67 @@ mirarlos. Las desviaciones respecto a `REQUISITOS-v0.2.md` van al final.
 
 ---
 
+## R6 — Paredes
+
+**Qué se hizo**
+
+- El núcleo detecta las **paredes** (`Core/Paredes.swift`): un triángulo
+  con sus tres vértices válidos es pared si d' salta más que τ entre dos
+  vértices (diferencia relativa al más cercano) o si cambia el ID. Se
+  calcula en la CPU junto con las posiciones, cada vez que cambian la
+  estrategia, `s` o τ.
+- Panel, sección **Paredes**: "Resaltar paredes" (60 % rojo), slider τ
+  (por defecto 0.08) y "Caras traseras en azul". En **Datos**, el % de
+  triángulos válidos que son pared.
+- Nueva autoprueba: desde C no se ve ninguna cara trasera. Es sensible: si
+  se voltea la orientación, falla con 36 222 píxeles azules.
+
+Medido en la escena de prueba (τ = 0.08):
+
+| Estrategia | s | % paredes | bordes entre objetos con salto > τ | salto medio en esos bordes | saltos dentro de un objeto |
+|---|---|---|---|---|---|
+| Global | 1 | 3.2 % | 281 de 473 | 0.91 | 1 816 |
+| Global | 0.5 | 0.8 % | 219 de 473 | 0.47 | 82 |
+| Por objeto | 1 | 3.5 % | 473 de 473 | 2.90 | 2 042 |
+| Por objeto | 0.5 | 1.6 % | 473 de 473 | 2.08 | 654 |
+
+**Conceptos nuevos**
+
+- **Aprovechar el relleno de `SIMD3`.** La marca de pared viaja en la `w`
+  del buffer de posiciones (`SIMD4<Float>`: xyz = posición, w = pared). Una
+  `SIMD3` ya ocupaba 16 bytes, así que no cuesta memoria extra. En el
+  `MTLVertexDescriptor`, el atributo 3 lee un `float` en el offset 12 del
+  mismo buffer.
+- **`[[front_facing]]`.** Un parámetro del fragment shader que dice si el
+  triángulo se ve por delante. Lo decide el orden en que aparecen sus
+  vértices en pantalla, comparado con `setFrontFacing`. Metal toma por
+  defecto el sentido horario; la rejilla es antihoraria vista desde C, así
+  que se pide `.counterClockwise`.
+- **Marca por vértice interpolada.** La GPU no sabe de triángulos "pared":
+  cada vértice dice si toca una pared (0/1) y el rasterizador interpola.
+  Por eso el rojo se derrama un poco en los triángulos vecinos que
+  comparten esos vértices. Es aproximado a propósito; para la demo basta.
+- **`mix(a, b, t)`.** Mezcla lineal en Metal: `a·(1 − t) + b·t`. Con t = 0.6
+  queda 60 % del color de tinte.
+
+**Dónde mirar**
+
+- `Core/Paredes.swift` → la definición y por qué la diferencia es relativa.
+- `Shaders/Shaders.metal` → `fs_pieza` (tintes) y `PiezaUniforms`.
+- `Rendering/Pieza.swift` → `descriptorVertices` (atributo 3), `crearBufferPosiciones`.
+- `Rendering/Autoprueba.swift` → `revisarCarasDesdeC`, `dibujarDesdeC`.
+
+**Cómo se verificó**
+
+- Las capturas automáticas de esta parte no sirvieron: la ventana de la app
+  recibía gestos del trackpad mientras estaba al frente, y θ no quedaba
+  donde se pedía. Por eso la orientación se verifica con la autoprueba y
+  los porcentajes se midieron en la CPU (no dependen de la cámara). Falta
+  confirmar a mano, orbitando, que el rojo aparece en los contornos y
+  crece con θ.
+
+---
+
 ## Desviaciones
 
 - **R4.5 compara solo el interior de la imagen.** Contando todos los píxeles
@@ -293,3 +354,18 @@ mirarlos. Las desviaciones respecto a `REQUISITOS-v0.2.md` van al final.
   al centro del último, así que la última fila y la última columna caen
   sobre su borde derecho e inferior, y la regla top-left no las pinta. Se
   excluye el anillo de un píxel del borde; el resultado es 0.00/255.
+- **R6, aceptación: "con Por objeto hay menos paredes entre objetos que con
+  Global" no se cumple en esta escena.** Se dejó la definición de R6.1 tal
+  cual y se midió (tabla en la entrada de R6). Dos razones:
+  1. Con R6.1, todo triángulo con IDs distintos es pared. El número de
+     paredes entre objetos (473) es el mismo en las dos estrategias: no
+     puede bajar.
+  2. Si se miran solo los saltos de d' en esos bordes, "Por objeto" los
+     hace **más grandes**, no más chicos (salto medio 2.90 contra 0.91 con
+     s = 1). La global solo invierte el signo de las diferencias:
+     `Δd' = −s·Δd`. "Por objeto" pone cada objeto en su propio pivote (piso
+     3.75, esfera 4.25, cubo 5.83), y en la silueta de la esfera el piso de
+     atrás termina mucho más cerca que el borde de la esfera.
+  Queda para que Santiago decida: cambiar la definición de pared, cambiar
+  la expectativa o usar la híbrida (R7) para estudiarlo. No se forzó el
+  resultado.
