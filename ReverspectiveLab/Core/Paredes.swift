@@ -31,9 +31,13 @@ struct Paredes {
     /// Recorre los 2·(N−1)² triángulos de la rejilla y marca las paredes.
     ///
     /// Un triángulo es **pared** si, entre dos de sus vértices, d' salta más
-    /// que el umbral τ o el ID cambia (un borde entre objetos). Solo cuentan
-    /// los triángulos con los tres vértices válidos: los que tocan el fondo
-    /// no se dibujan.
+    /// que el umbral τ. Solo cuentan los triángulos con los tres vértices
+    /// válidos: los que tocan el fondo no se dibujan.
+    ///
+    /// Un cambio de ID por sí solo **no** es pared. Si lo fuera, los bordes
+    /// entre objetos contarían igual en todas las estrategias (dependen solo
+    /// de la foto de ID) y el % de paredes no podría compararlas. Así cuenta
+    /// solo lo que la inversión cambia: el tamaño de los saltos.
     ///
     /// Los triángulos son los mismos que forman las tiras de `Rejilla`: en
     /// cada cuadro, (arriba-izq, abajo-izq, arriba-der) y (abajo-izq,
@@ -50,11 +54,10 @@ struct Paredes {
         func revisar(_ a: Int, _ b: Int, _ c: Int) {
             guard ids[a] != 0, ids[b] != 0, ids[c] != 0 else { return }
             validos += 1
-            let cambiaID = ids[a] != ids[b] || ids[b] != ids[c]
             let salta = hayRuptura(distancias[a], distancias[b], umbral: umbral)
                      || hayRuptura(distancias[b], distancias[c], umbral: umbral)
                      || hayRuptura(distancias[a], distancias[c], umbral: umbral)
-            if cambiaID || salta {
+            if salta {
                 pared += 1
                 marca[a] = 1; marca[b] = 1; marca[c] = 1
             }
