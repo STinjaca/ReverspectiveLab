@@ -41,6 +41,10 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// Copia de las fotos en la CPU, leída una vez después de tomarlas.
     let fotosLeidas: FotosLeidas
 
+    /// Resultado de la autoprueba de arranque, para mostrarlo en la
+    /// interfaz. Vacío en Release, donde la autoprueba no corre.
+    private(set) var autoprueba: [Chequeo] = []
+
     #if DEBUG
     /// Volver a tomar las fotos en cada frame. La captura de GPU de Xcode
     /// solo muestra lo que pasa dentro de un frame: con esto en `true` la
@@ -110,6 +114,11 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.fotosLeidas = Self.tomarFotos(commandQueue: commandQueue, pasada: pasadaFotos,
                                            escena: escena, fotos: fotos)
         super.init()
+
+        #if DEBUG
+        autoprueba = Autoprueba.revisarFotos(fotosLeidas)
+        Autoprueba.imprimir(autoprueba)
+        #endif
     }
 
     /// Toma las fotos desde C una sola vez, antes del primer frame.
