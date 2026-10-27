@@ -156,6 +156,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         #if DEBUG
         autoprueba = Autoprueba.revisarFotos(fotosLeidas)
+        autoprueba.append(Autoprueba.revisarPiezaDesdeC(device: device, commandQueue: commandQueue,
+                                                        pieza: pieza, fotos: fotos, leidas: fotosLeidas,
+                                                        camaraC: escena.camaraC))
         Autoprueba.imprimir(autoprueba)
         #endif
     }
